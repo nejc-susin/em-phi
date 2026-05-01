@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, replace
 from typing import Callable
+
+_BODY_LIMIT = 4000
 
 from em_phi.actions import apply_verdict
 from em_phi.classifiers.base import Classifier
@@ -124,6 +127,7 @@ def _process_sender(
 
         try:
             email = provider.get_message(msg_id)
+            email = replace(email, body=_prepare_body(email.body))
             verdict = classifier.classify(email, sender)
             action = apply_verdict(
                 email=email,
@@ -159,3 +163,17 @@ def _process_sender(
             on_email(email, verdict, action, dry_run)
 
     return result
+
+
+# ------------------------------------------------------------------
+# Body preprocessing
+# ------------------------------------------------------------------
+
+_URL_RE = re.compile(r"<?(?:https?://|www\.)\S+>?")
+
+
+def _prepare_body(body: str) -> str:
+    """Strip links and truncate body before sending to the classifier."""
+    stripped = _URL_RE.sub("<link>", body)
+    collapsed = " ".join(stripped.split())
+    return collapsed[:_BODY_LIMIT]
