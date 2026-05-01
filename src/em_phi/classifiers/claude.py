@@ -36,7 +36,6 @@ no markdown fences, no explanation outside the JSON.
 
 _USER_TEMPLATE = """\
 ## Email to classify
-From: {sender}
 Subject: {subject}
 Date: {date}
 
@@ -52,7 +51,6 @@ def build_prompt(email: Email, sender: SenderConfig) -> tuple[str, str]:
         tolerance_guidance=_TOLERANCE_GUIDANCE[sender.tolerance],
     )
     user = _USER_TEMPLATE.format(
-        sender=email.sender,
         subject=email.subject,
         date=email.received_at.strftime("%Y-%m-%d %H:%M UTC"),
         body=email.body,
