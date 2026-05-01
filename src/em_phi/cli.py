@@ -1,5 +1,6 @@
 import importlib
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import click
@@ -209,6 +210,93 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
     if total_errors:
         summary_parts.append(f"{total_errors} errors")
     click.echo(f"Run complete: {', '.join(summary_parts)}")
+
+
+@cli.command("debug")
+@click.option("--sender", default=None, help="Inspect emails from this sender only.")
+@click.option("--limit", default=1, show_default=True, help="Number of emails to inspect.")
+@click.pass_context
+def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
+    """Fetch emails and print the classifier prompt without calling the LLM.
+
+    Useful for checking what Claude would see before a real run.
+    Only works with the built-in Claude classifier.
+    """
+    from em_phi.classifiers.claude import build_prompt
+    from em_phi.processor import _prepare_body
+
+    config_path: Path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    if config.llm.name != "claude":
+        raise click.ClickException(
+            f"debug only supports the built-in 'claude' classifier, got '{config.llm.name}'"
+        )
+
+    if sender:
+        known = {e for s in config.senders for e in s.email}
+        if sender not in known:
+            raise click.ClickException(
+                f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
+            )
+
+    provider = _build_provider(config)
+    try:
+        provider.authenticate()
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
+
+    senders_to_inspect = (
+        [s for s in config.senders if sender in s.email] if sender else config.senders
+    )
+
+    found = 0
+    for s in senders_to_inspect:
+        if found >= limit:
+            break
+
+        try:
+            message_ids = provider.fetch_unread(s.email)
+        except RuntimeError as e:
+            click.echo(f"  WARNING: could not fetch from {s.email[0]}: {e}", err=True)
+            continue
+
+        for msg_id in message_ids:
+            if found >= limit:
+                break
+
+            try:
+                email = provider.get_message(msg_id)
+            except RuntimeError as e:
+                click.echo(f"  WARNING: could not fetch message {msg_id}: {e}", err=True)
+                continue
+
+            email_with_processed_body = replace(email, body=_prepare_body(email.body))
+            system_prompt, user_message = build_prompt(email_with_processed_body, s)
+
+            found += 1
+            width = 72
+            click.echo("=" * width)
+            click.echo(f"  Email {found}/{limit}  |  {msg_id}")
+            click.echo(f"  Sender:  {email.sender}")
+            click.echo(f"  Subject: {email.subject}")
+            click.echo(f"  Date:    {email.received_at.strftime('%Y-%m-%d %H:%M UTC')}")
+            click.echo(f"  Body:    {len(email.body)} chars raw → {len(email_with_processed_body.body)} chars after preprocessing")
+            click.echo("=" * width)
+            click.echo()
+            click.echo("--- SYSTEM PROMPT " + "-" * (width - 18))
+            click.echo(system_prompt)
+            click.echo()
+            click.echo("--- USER MESSAGE " + "-" * (width - 17))
+            click.echo(user_message)
+            click.echo()
+
+    if found == 0:
+        click.echo("No unread emails found for the specified sender(s).")
 
 
 def _build_provider(config: AppConfig) -> EmailProvider:

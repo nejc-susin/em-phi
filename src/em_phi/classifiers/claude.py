@@ -8,9 +8,9 @@ import re
 import anthropic
 
 from em_phi.config import LLMConfig, SenderConfig
+from em_phi.models import Email, Verdict
 
 logger = logging.getLogger(__name__)
-from em_phi.models import Email, Verdict
 
 _TOLERANCE_GUIDANCE = {
     "aggressive": "Archive anything not clearly relevant. When in doubt, archive.",
@@ -43,6 +43,23 @@ Date: {date}
 {body}"""
 
 
+def build_prompt(email: Email, sender: SenderConfig) -> tuple[str, str]:
+    """Return (system_prompt, user_message) for the given email and sender config."""
+    system = _SYSTEM_TEMPLATE.format(
+        sender_name=sender.name,
+        interests=sender.interests.strip(),
+        tolerance=sender.tolerance,
+        tolerance_guidance=_TOLERANCE_GUIDANCE[sender.tolerance],
+    )
+    user = _USER_TEMPLATE.format(
+        sender=email.sender,
+        subject=email.subject,
+        date=email.received_at.strftime("%Y-%m-%d %H:%M UTC"),
+        body=email.body,
+    )
+    return system, user
+
+
 class ClaudeClassifier:
     def __init__(self, config: LLMConfig) -> None:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -56,19 +73,7 @@ class ClaudeClassifier:
         self._max_tokens = config.max_tokens
 
     def classify(self, email: Email, sender: SenderConfig) -> Verdict:
-        system_prompt = _SYSTEM_TEMPLATE.format(
-            sender_name=sender.name,
-            interests=sender.interests.strip(),
-            tolerance=sender.tolerance,
-            tolerance_guidance=_TOLERANCE_GUIDANCE[sender.tolerance],
-        )
-
-        user_message = _USER_TEMPLATE.format(
-            sender=email.sender,
-            subject=email.subject,
-            date=email.received_at.strftime("%Y-%m-%d %H:%M UTC"),
-            body=email.body,
-        )
+        system_prompt, user_message = build_prompt(email, sender)
 
         logger.debug("Claude: classifying %r (model=%s)", email.subject, self._model)
         response = self._client.messages.create(

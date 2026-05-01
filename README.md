@@ -78,8 +78,45 @@ em-phi log
 | `em-phi log --sender EMAIL` | Filter log by sender |
 | `em-phi log --days N` | Show decisions from the last N days |
 | `em-phi log --limit N` | Show N entries (default: 20) |
+| `em-phi debug` | Fetch the first unread email and print the exact prompt that would be sent to Claude |
+| `em-phi debug --sender EMAIL` | Debug a specific sender |
+| `em-phi debug --limit N` | Inspect the first N unread emails |
 
 Global option: `--config PATH` (default: `config.yaml`, overridden by `EM_PHI_CONFIG` env var).
+
+### debug command
+
+`em-phi debug` is a prompt inspector. It authenticates with Gmail, fetches real unread emails, runs them through the same body preprocessing as a normal run (link stripping, 4000-character truncation), and prints exactly what would be sent to Claude — without making any LLM call or modifying your inbox.
+
+```
+========================================================================
+  Email 1/1  |  18a3f2c9d4e1b
+  Sender:  Python Weekly <editor@pyweekly.com>
+  Subject: Issue #456 — Python 3.14 is here
+  Date:    2026-05-01 08:00 UTC
+  Body:    6241 chars raw → 3847 chars after preprocessing
+========================================================================
+
+--- SYSTEM PROMPT --------------------------------------------------
+You are an email relevance classifier for a newsletter reader.
+
+## Reader's interest profile for Python Weekly
+I care about Python releases and security updates.
+...
+
+--- USER MESSAGE ---------------------------------------------------
+## Email to classify
+From: editor@pyweekly.com
+Subject: Issue #456 — Python 3.14 is here
+...
+```
+
+Use cases:
+- **Tune your interest profile** — see exactly what Claude reads before adjusting `interests` in the config
+- **Check preprocessing** — verify that link stripping and truncation are leaving the right content
+- **Diagnose unexpected verdicts** — compare the prompt against Claude's reasoning in `em-phi log`
+
+`ANTHROPIC_API_KEY` is not required. Only works with the built-in `claude` classifier.
 
 ---
 
