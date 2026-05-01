@@ -163,6 +163,36 @@ senders:
 
 ---
 
+## Privacy
+
+**What em-phi accesses**
+
+em-phi only reads emails from senders you explicitly configure. It does not scan your full inbox or access any other Gmail data. The Gmail OAuth scope requested is `gmail.modify` — the minimum needed to read emails and apply labels.
+
+**What is sent to the Anthropic API**
+
+For each matched email, the subject line and body text are sent to Claude for classification. The sender's address is not included. Your interest profile for that sender (from your config) is also sent as part of the prompt.
+
+Body text is preprocessed before sending: links are replaced with a `<link>` placeholder and the text is truncated to 4000 characters.
+
+Anthropic's standard API terms apply. If you want stronger guarantees, check whether [zero data retention](https://www.anthropic.com/privacy) is available on your plan.
+
+**What is stored locally**
+
+The decision log (`decisions.db`) records, for each processed email:
+
+- Sender address, subject line, and timestamp
+- The verdict (relevant / irrelevant), confidence, and Claude's one-sentence reason
+- The action taken (label / archive)
+
+Email body text is never written to the database or log files.
+
+**What stays on your machine**
+
+Everything else: your Gmail credentials (`credentials.json`, `token.json`), your config file with your interest profiles, and the decision database. No em-phi server is involved — the tool runs entirely on your own hardware and talks directly to the Gmail and Anthropic APIs.
+
+---
+
 ## Scheduling
 
 Run em-phi on a schedule to keep your inbox filtered automatically. See:
