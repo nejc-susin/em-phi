@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import email.utils
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from em_phi.models import Email
+
+logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 _MAX_RESULTS = 100
@@ -46,13 +49,17 @@ class GmailProvider:
 
         if not creds.valid:
             if creds.expired and creds.refresh_token:
+                logger.info("Gmail: token expired, refreshing")
                 creds.refresh(Request())
                 self._token_file.write_text(creds.to_json())
+                logger.debug("Gmail: token refreshed, saved to %s", self._token_file)
             else:
                 raise RuntimeError(
                     f"Token is invalid and cannot be refreshed: {self._token_file}\n"
                     "Re-run the authorization script in docs/gmail-setup.md."
                 )
+        else:
+            logger.debug("Gmail: credentials valid")
 
         self._service = build("gmail", "v1", credentials=creds)
 
@@ -71,6 +78,7 @@ class GmailProvider:
         if self._fetch_label:
             query += f" label:{self._fetch_label}"
 
+        logger.debug("Gmail: querying %r", query)
         try:
             result = (
                 self._service.users()
@@ -79,12 +87,16 @@ class GmailProvider:
                 .execute()
             )
         except HttpError as e:
+            logger.warning("Gmail API error listing messages: %s", e)
             raise RuntimeError(f"Gmail API error listing messages: {e}") from e
 
-        return [m["id"] for m in result.get("messages", [])]
+        ids = [m["id"] for m in result.get("messages", [])]
+        logger.debug("Gmail: found %d message(s)", len(ids))
+        return ids
 
     def get_message(self, message_id: str) -> Email:
         """Fetch and parse a full message."""
+        logger.debug("Gmail: fetching message %s", message_id)
         try:
             raw = (
                 self._service.users()
@@ -93,6 +105,7 @@ class GmailProvider:
                 .execute()
             )
         except HttpError as e:
+            logger.warning("Gmail API error fetching %s: %s", message_id, e)
             raise RuntimeError(f"Gmail API error fetching message {message_id}: {e}") from e
 
         headers = {h["name"]: h["value"] for h in raw["payload"]["headers"]}
@@ -103,6 +116,7 @@ class GmailProvider:
         try:
             received_at = email.utils.parsedate_to_datetime(date_str)
         except Exception:
+            logger.debug("Gmail: could not parse date %r for %s, using now()", date_str, message_id)
             received_at = datetime.now(tz=timezone.utc)
 
         body = _extract_body(raw["payload"])
@@ -117,6 +131,7 @@ class GmailProvider:
 
     def apply_label(self, message_id: str, label_name: str) -> None:
         """Apply label_name to the message, creating the label first if needed."""
+        logger.debug("Gmail: applying label %r to %s", label_name, message_id)
         label_id = self._ensure_label(label_name)
         try:
             self._service.users().messages().modify(
@@ -125,10 +140,12 @@ class GmailProvider:
                 body={"addLabelIds": [label_id]},
             ).execute()
         except HttpError as e:
+            logger.warning("Gmail API error applying label to %s: %s", message_id, e)
             raise RuntimeError(f"Gmail API error applying label to {message_id}: {e}") from e
 
     def archive(self, message_id: str) -> None:
         """Remove the message from INBOX without deleting it."""
+        logger.debug("Gmail: archiving %s", message_id)
         try:
             self._service.users().messages().modify(
                 userId="me",
@@ -136,6 +153,7 @@ class GmailProvider:
                 body={"removeLabelIds": ["INBOX"]},
             ).execute()
         except HttpError as e:
+            logger.warning("Gmail API error archiving %s: %s", message_id, e)
             raise RuntimeError(f"Gmail API error archiving {message_id}: {e}") from e
 
     # ------------------------------------------------------------------
@@ -150,6 +168,7 @@ class GmailProvider:
         try:
             result = self._service.users().labels().list(userId="me").execute()
         except HttpError as e:
+            logger.warning("Gmail API error listing labels: %s", e)
             raise RuntimeError(f"Gmail API error listing labels: {e}") from e
 
         for label in result.get("labels", []):
@@ -158,6 +177,7 @@ class GmailProvider:
                 return label["id"]
 
         # Label not found — create it
+        logger.info("Gmail: creating label %r", name)
         try:
             new_label = (
                 self._service.users()
@@ -173,6 +193,7 @@ class GmailProvider:
                 .execute()
             )
         except HttpError as e:
+            logger.warning("Gmail API error creating label %r: %s", name, e)
             raise RuntimeError(f"Gmail API error creating label '{name}': {e}") from e
 
         self._label_cache[name] = new_label["id"]

@@ -1,4 +1,5 @@
 import importlib
+import logging
 from pathlib import Path
 
 import click
@@ -122,6 +123,8 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
         config = load_config(config_path)
     except ConfigError as e:
         raise click.ClickException(str(e))
+
+    _configure_logging(config)
 
     if dry_run:
         click.echo("[DRY RUN] No changes will be made to Gmail or the decision log.")
@@ -257,6 +260,22 @@ def _build_classifier(config: AppConfig) -> Classifier:
             f"em_phi.classifiers.{name} must define create(config: AppConfig) -> Classifier"
         )
     return module.create(config)
+
+
+def _configure_logging(config: AppConfig) -> None:
+    log_cfg = config.logging
+    level = getattr(logging, log_cfg.level)
+
+    console = logging.StreamHandler()
+    console.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    handlers: list[logging.Handler] = [console]
+
+    if log_cfg.file:
+        fh = logging.FileHandler(str(log_cfg.file), encoding="utf-8")
+        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
+        handlers.append(fh)
+
+    logging.basicConfig(level=level, handlers=handlers, force=True)
 
 
 def _report_path(label: str, path: Path, *, missing_hint: str) -> None:

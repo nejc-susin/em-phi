@@ -26,6 +26,10 @@ labels:
 decision_log:
   path: decisions.db                   # SQLite database path (relative to this file's directory)
 
+# logging:
+#   level: WARNING    # DEBUG | INFO | WARNING | ERROR (default: WARNING = silent)
+#   file: null        # optional path; writes timestamped log there in addition to console
+
 senders:
   # One entry per newsletter sender.
   # 'interests' is a natural-language description of what you want to see from this sender.

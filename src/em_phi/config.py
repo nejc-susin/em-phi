@@ -59,6 +59,20 @@ class DecisionLogConfig(BaseModel):
         return _expand(str(v))
 
 
+class LoggingConfig(BaseModel):
+    model_config = ConfigDict(frozen=False)
+
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "WARNING"
+    file: Path | None = None
+
+    @field_validator("file", mode="before")
+    @classmethod
+    def expand_path(cls, v: object) -> Path | None:
+        if v is None:
+            return None
+        return _expand(str(v))
+
+
 class SenderConfig(BaseModel):
     email: list[str]
     name: str
@@ -89,6 +103,7 @@ class AppConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     labels: LabelsConfig = LabelsConfig()
     decision_log: DecisionLogConfig = DecisionLogConfig()
+    logging: LoggingConfig = LoggingConfig()
     senders: list[SenderConfig]
 
     @model_validator(mode="after")
@@ -106,6 +121,8 @@ class AppConfig(BaseModel):
             ep.token_file = config_dir / ep.token_file
         if not self.decision_log.path.is_absolute():
             self.decision_log.path = config_dir / self.decision_log.path
+        if self.logging.file and not self.logging.file.is_absolute():
+            self.logging.file = config_dir / self.logging.file
 
 
 def load_config(config_path: Path) -> AppConfig:

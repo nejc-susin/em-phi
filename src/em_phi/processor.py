@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field, replace
 from typing import Callable
+
+logger = logging.getLogger(__name__)
 
 _BODY_LIMIT = 4000
 
@@ -112,9 +115,11 @@ def _process_sender(
 ) -> SenderResult:
     result = SenderResult(sender_email=sender.email[0])
 
+    logger.debug("Processor: starting %s", sender.email[0])
     try:
         message_ids = provider.fetch_unread(sender.email)
     except Exception as exc:
+        logger.error("Processor: fetch_unread failed for %s: %s", sender.email, exc)
         if on_error:
             on_error(f"fetch_unread({sender.email})", exc)
         result.errors += 1
@@ -122,6 +127,7 @@ def _process_sender(
 
     for msg_id in message_ids:
         if log.is_processed(msg_id):
+            logger.debug("Processor: skipping %s (already processed)", msg_id)
             result.skipped += 1
             continue
 
@@ -138,6 +144,7 @@ def _process_sender(
                 dry_run=dry_run,
             )
         except Exception as exc:
+            logger.error("Processor: error on message %s: %s", msg_id, exc)
             if on_error:
                 on_error(f"processing message {msg_id}", exc)
             result.errors += 1
@@ -162,6 +169,10 @@ def _process_sender(
         if on_email:
             on_email(email, verdict, action, dry_run)
 
+    logger.info(
+        "Processor: %s done — processed=%d skipped=%d errors=%d",
+        sender.email[0], result.processed, result.skipped, result.errors,
+    )
     return result
 
 

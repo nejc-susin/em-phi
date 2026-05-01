@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from typing import Iterator
 
 from em_phi.models import Verdict
 
+logger = logging.getLogger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS decisions (
@@ -50,6 +52,7 @@ class DecisionLog:
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+        logger.debug("DecisionLog: initialized at %s", self.path)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -81,6 +84,7 @@ class DecisionLog:
         verdict: Verdict,
         action_taken: str,
     ) -> None:
+        logger.debug("DecisionLog: recording %s (verdict=%s action=%s)", message_id, verdict.verdict, action_taken)
         with self._connect() as conn:
             conn.execute(
                 """

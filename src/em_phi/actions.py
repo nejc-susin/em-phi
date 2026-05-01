@@ -1,6 +1,10 @@
+import logging
+
 from em_phi.config import LabelsConfig, SenderConfig
 from em_phi.models import Email, Verdict
 from em_phi.providers.base import EmailProvider
+
+logger = logging.getLogger(__name__)
 
 
 def apply_verdict(
@@ -25,9 +29,13 @@ def apply_verdict(
         label = labels.irrelevant
         action = sender.action  # "label" or "archive"
 
-    if not dry_run:
+    if dry_run:
+        logger.debug("Actions: [DRY RUN] would label=%r action=%s on %s", label, action, email.message_id)
+    else:
         provider.apply_label(email.message_id, label)
+        logger.info("Actions: applied label=%r to %s", label, email.message_id)
         if action == "archive":
             provider.archive(email.message_id)
+            logger.info("Actions: archived %s", email.message_id)
 
     return action

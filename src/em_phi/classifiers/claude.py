@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 
 import anthropic
 
 from em_phi.config import LLMConfig, SenderConfig
+
+logger = logging.getLogger(__name__)
 from em_phi.models import Email, Verdict
 
 _TOLERANCE_GUIDANCE = {
@@ -67,6 +70,7 @@ class ClaudeClassifier:
             body=email.body,
         )
 
+        logger.debug("Claude: classifying %r (model=%s)", email.subject, self._model)
         response = self._client.messages.create(
             model=self._model,
             max_tokens=self._max_tokens,
@@ -83,6 +87,7 @@ class ClaudeClassifier:
         )
 
         raw = response.content[0].text
+        logger.debug("Claude: raw response: %r", raw)
         return _parse_verdict(raw)
 
 
@@ -99,6 +104,7 @@ def _parse_verdict(text: str) -> Verdict:
         pass
 
     # 2. JSON inside a markdown code block
+    logger.debug("Claude: direct JSON failed, trying markdown fence")
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if match:
         try:
@@ -107,6 +113,7 @@ def _parse_verdict(text: str) -> Verdict:
             pass
 
     # 3. First JSON object found anywhere in the response
+    logger.debug("Claude: markdown fence failed, trying regex")
     match = re.search(r"\{[^{}]+\}", text, re.DOTALL)
     if match:
         try:
@@ -114,6 +121,7 @@ def _parse_verdict(text: str) -> Verdict:
         except (json.JSONDecodeError, ValueError):
             pass
 
+    logger.error("Claude: all parse strategies failed: %r", text)
     raise ValueError(f"Could not parse verdict from Claude response:\n{text!r}")
 
 
@@ -125,6 +133,7 @@ def _validate(data: dict) -> Verdict:
     if verdict not in ("relevant", "irrelevant"):
         raise ValueError(f"Unexpected verdict value: {verdict!r}")
     if confidence not in ("high", "medium", "low"):
+        logger.warning("Claude: unexpected confidence %r, normalizing to 'medium'", confidence)
         confidence = "medium"
     if not reason:
         raise ValueError("Missing reason in verdict")
