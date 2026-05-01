@@ -9,6 +9,7 @@ email_provider:
   name: gmail
   credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
   token_file: token.json               # Auto-managed refresh token (created by `em-phi setup`)
+  # fetch_label: "ToFilter"            # optional: only process emails carrying this Gmail label
 
 # LLM classifier. All LLM-specific settings nest under this block.
 # Built-in: claude. Custom: add src/em_phi/classifiers/myclassifier.py with

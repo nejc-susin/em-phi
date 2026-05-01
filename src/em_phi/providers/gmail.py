@@ -18,9 +18,15 @@ _MAX_RESULTS = 100
 
 
 class GmailProvider:
-    def __init__(self, credentials_file: Path, token_file: Path) -> None:
+    def __init__(
+        self,
+        credentials_file: Path,
+        token_file: Path,
+        fetch_label: str | None = None,
+    ) -> None:
         self._credentials_file = credentials_file
         self._token_file = token_file
+        self._fetch_label = fetch_label
         self._service: Any = None
         self._label_cache: dict[str, str] = {}  # label name → label id
 
@@ -62,6 +68,8 @@ class GmailProvider:
         else:
             from_clause = "{" + " ".join(froms) + "}"
         query = f"{from_clause} is:unread"
+        if self._fetch_label:
+            query += f" label:{self._fetch_label}"
 
         try:
             result = (

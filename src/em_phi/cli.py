@@ -222,7 +222,7 @@ def _build_provider(config: AppConfig) -> EmailProvider:
             raise click.ClickException(
                 "email_provider 'gmail' requires credentials_file and token_file under email_provider:"
             )
-        return GmailProvider(ep.credentials_file, ep.token_file)
+        return GmailProvider(ep.credentials_file, ep.token_file, ep.fetch_label)
     try:
         module = importlib.import_module(f"em_phi.providers.{name}")
     except ImportError as e:

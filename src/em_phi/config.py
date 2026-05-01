@@ -25,6 +25,7 @@ class EmailProviderConfig(BaseModel):
     # Gmail-specific fields; other providers define their own under email_provider:
     credentials_file: Path | None = None
     token_file: Path | None = None
+    fetch_label: str | None = None  # if set, only fetch emails that carry this label
 
     @field_validator("credentials_file", "token_file", mode="before")
     @classmethod
