@@ -6,9 +6,6 @@ dist/
 build/
 .venv/
 
-# uv
-uv.lock
-
 # Secrets & credentials (never commit these)
 credentials.json
 token.json

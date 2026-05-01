@@ -1,18 +1,18 @@
-# email-filter configuration
+# em-phi configuration
 # Copy to config.yaml and fill in your values.
 # config.yaml is gitignored — never commit it with real credentials.
 
 gmail:
   credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
-  token_file: token.json               # Auto-managed refresh token (created by `email-filter setup`)
+  token_file: token.json               # Auto-managed refresh token (created by `em-phi setup`)
 
 anthropic:
   model: claude-haiku-4-5-20251001     # Claude Haiku is recommended for cost efficiency
   max_tokens: 256
 
 labels:
-  relevant: "EmailFilter/Relevant"     # Applied to emails Claude considers relevant
-  irrelevant: "EmailFilter/Irrelevant" # Applied to emails Claude considers irrelevant
+  relevant: "EmPhi/Relevant"           # Applied to emails Claude considers relevant
+  irrelevant: "EmPhi/Irrelevant"       # Applied to emails Claude considers irrelevant
 
 decision_log:
   path: decisions.db                   # SQLite database path (relative to working directory)

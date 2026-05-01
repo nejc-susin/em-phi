@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "email-filter"
+name = "em-phi"
 version = "0.1.0"
 description = "Self-hosted AI-powered email filtering for Gmail newsletters"
 readme = "README.md"
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-email-filter = "email_filter.cli:cli"
+em-phi = "em_phi.cli:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/email_filter"]
+packages = ["src/em_phi"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
