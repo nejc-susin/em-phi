@@ -8,7 +8,6 @@ from typing import Any
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -35,7 +34,7 @@ class GmailProvider:
         if not self._token_file.exists():
             raise RuntimeError(
                 f"Token not found: {self._token_file}\n"
-                "Run `em-phi setup` to authorize access to your Gmail account."
+                "See docs/gmail-setup.md for instructions on generating token.json."
             )
 
         creds = Credentials.from_authorized_user_file(str(self._token_file), SCOPES)
@@ -43,30 +42,14 @@ class GmailProvider:
         if not creds.valid:
             if creds.expired and creds.refresh_token:
                 creds.refresh(Request())
-                self._save_token(creds)
+                self._token_file.write_text(creds.to_json())
             else:
                 raise RuntimeError(
                     f"Token is invalid and cannot be refreshed: {self._token_file}\n"
-                    "Run `em-phi setup` to re-authorize."
+                    "Re-run the authorization script in docs/gmail-setup.md."
                 )
 
         self._service = build("gmail", "v1", credentials=creds)
-
-    def run_setup_flow(self) -> None:
-        """Run the interactive OAuth2 browser flow and save the token."""
-        if not self._credentials_file.exists():
-            raise FileNotFoundError(
-                f"Credentials file not found: {self._credentials_file}\n"
-                "Download it from Google Cloud Console → APIs & Services → Credentials."
-            )
-
-        flow = InstalledAppFlow.from_client_secrets_file(str(self._credentials_file), SCOPES)
-        creds = flow.run_local_server(port=0)
-        self._save_token(creds)
-        self._service = build("gmail", "v1", credentials=creds)
-
-    def _save_token(self, creds: Credentials) -> None:
-        self._token_file.write_text(creds.to_json())
 
     # ------------------------------------------------------------------
     # Message operations

@@ -6,7 +6,7 @@ em-phi ships with a `Dockerfile` and `docker-compose.yaml`. All persistent state
 
 ## The OAuth2 constraint
 
-Gmail OAuth2 requires a browser for the initial authorization. You must run `em-phi setup` on a machine with a browser **before** using Docker. After that, em-phi uses the saved refresh token silently and Docker works headlessly.
+Gmail OAuth2 requires a browser for the initial authorization. You must generate `token.json` on a machine with a browser **before** using Docker. After that, em-phi uses the saved refresh token silently and Docker works headlessly.
 
 ---
 
@@ -42,11 +42,12 @@ decision_log:
 
 Download `credentials.json` from Google Cloud Console (see [gmail-setup.md](gmail-setup.md)) and place it at `data/credentials.json`.
 
-### 4. Run the OAuth2 setup flow on the host
+### 4. Generate token.json on the host
+
+Follow [gmail-setup.md](gmail-setup.md) step 5 to run the one-time authorization script. Pass paths pointing into `data/`:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-em-phi --config data/config.yaml setup
+.venv/bin/python authorize.py data/credentials.json data/token.json
 ```
 
 This opens a browser, completes the OAuth2 flow, and writes `data/token.json`. You only need to do this once (or after revoking access).
@@ -114,7 +115,7 @@ em-phi/
 └── data/
     ├── config.yaml         # your config — gitignored
     ├── credentials.json    # from Google Cloud Console — gitignored
-    ├── token.json          # from `em-phi setup` — gitignored
+    ├── token.json          # from authorize.py — gitignored
     └── decisions.db        # auto-created by em-phi — gitignored
 ```
 
@@ -135,7 +136,7 @@ The `data/` directory and all your state are untouched.
 
 ## Troubleshooting
 
-**"Token not found"** — you need to run `em-phi setup` on the host first to generate `data/token.json`.
+**"Token not found"** — run `authorize.py` on the host first (see gmail-setup.md step 5) to generate `data/token.json`.
 
 **"ANTHROPIC_API_KEY environment variable is not set"** — make sure `.env` exists in the project root with `ANTHROPIC_API_KEY=sk-ant-...`.
 

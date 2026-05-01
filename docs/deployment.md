@@ -119,7 +119,7 @@ em-phi runs fine on a Raspberry Pi (any model with 512 MB+ RAM).
 
 - Use a user-level cron (`crontab -e` as your user, not root)
 - Keep `decisions.db` on the SD card — it's small and write patterns are light (a few inserts per run)
-- If running headless, complete `em-phi setup` on a machine with a browser first, copy `token.json` to the Pi
+- If running headless, run `authorize.py` on a machine with a browser first (see docs/gmail-setup.md), then copy `token.json` to the Pi
 
 ---
 

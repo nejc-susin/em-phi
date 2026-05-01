@@ -42,14 +42,9 @@ cp config.example.yaml config.yaml
 
 Edit `config.yaml` with your senders and interest profiles. See [Config reference](#config-reference) below.
 
-### 4. Authorize Gmail
+### 4. Generate token.json
 
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-em-phi setup
-```
-
-This opens a browser for the Google OAuth2 consent screen and saves a refresh token to `token.json`.
+Follow [docs/gmail-setup.md](docs/gmail-setup.md) step 5 to run the one-time authorization script. It opens a browser for the Google OAuth2 consent screen and saves a refresh token to `token.json`.
 
 ### 5. Preview (dry run)
 
@@ -83,7 +78,6 @@ em-phi log
 | `em-phi log --sender EMAIL` | Filter log by sender |
 | `em-phi log --days N` | Show decisions from the last N days |
 | `em-phi log --limit N` | Show N entries (default: 20) |
-| `em-phi setup` | Run Gmail OAuth2 flow and save token |
 
 Global option: `--config PATH` (default: `config.yaml`, overridden by `EM_PHI_CONFIG` env var).
 

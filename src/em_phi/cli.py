@@ -4,7 +4,7 @@ from pathlib import Path
 import click
 
 from em_phi.classifiers.base import Classifier
-from em_phi.config import AppConfig, ConfigError, EmailProviderConfig, load_config
+from em_phi.config import AppConfig, ConfigError, load_config
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
 from em_phi.providers.base import EmailProvider
@@ -100,45 +100,6 @@ def log_cmd(ctx: click.Context, sender: str | None, days: int | None, limit: int
     relevant = totals.get("relevant", 0)
     irrelevant = totals.get("irrelevant", 0)
     click.echo(f"Total in log: {total}  ({relevant} relevant, {irrelevant} irrelevant)")
-
-
-@cli.command("setup")
-@click.pass_context
-def setup(ctx: click.Context) -> None:
-    """Authorize Gmail access via OAuth2 and save the refresh token.
-
-    Opens a browser window for the Google consent screen. Run this once
-    on the host before using em-phi in Docker or on a headless server.
-    """
-    config_path: Path = ctx.obj["config_path"]
-
-    try:
-        config = load_config(config_path)
-    except ConfigError as e:
-        raise click.ClickException(str(e))
-
-    from em_phi.providers.gmail import GmailProvider
-
-    ep = config.email_provider
-    if not ep.credentials_file or not ep.token_file:
-        raise click.ClickException(
-            "email_provider 'gmail' requires credentials_file and token_file in config."
-        )
-    provider = GmailProvider(credentials_file=ep.credentials_file, token_file=ep.token_file)
-
-    click.echo(f"Opening browser for Gmail OAuth2 authorization...")
-    click.echo(f"Token will be saved to: {ep.token_file}")
-    click.echo()
-
-    try:
-        provider.run_setup_flow()
-    except FileNotFoundError as e:
-        raise click.ClickException(str(e))
-    except Exception as e:
-        raise click.ClickException(f"OAuth2 flow failed: {e}")
-
-    click.echo(f"Authorization complete. Token saved to: {config.gmail.token_file}")
-    click.echo("You can now run `em-phi run` to process emails.")
 
 
 @cli.command("run")
