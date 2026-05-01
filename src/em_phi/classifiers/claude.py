@@ -6,7 +6,7 @@ import re
 
 import anthropic
 
-from em_phi.config import AnthropicConfig, SenderConfig
+from em_phi.config import LLMConfig, SenderConfig
 from em_phi.models import Email, Verdict
 
 _TOLERANCE_GUIDANCE = {
@@ -41,7 +41,7 @@ Date: {date}
 
 
 class ClaudeClassifier:
-    def __init__(self, config: AnthropicConfig) -> None:
+    def __init__(self, config: LLMConfig) -> None:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise RuntimeError(

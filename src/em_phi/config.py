@@ -16,19 +16,28 @@ def _expand(raw: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(str(raw))))
 
 
-class GmailConfig(BaseModel):
-    model_config = ConfigDict(frozen=False)
+class EmailProviderConfig(BaseModel):
+    """Config for the email provider. Extra fields are preserved for custom providers."""
 
-    credentials_file: Path
-    token_file: Path
+    model_config = ConfigDict(frozen=False, extra="allow")
+
+    name: str = "gmail"
+    # Gmail-specific fields; other providers define their own under email_provider:
+    credentials_file: Path | None = None
+    token_file: Path | None = None
 
     @field_validator("credentials_file", "token_file", mode="before")
     @classmethod
-    def expand_path(cls, v: object) -> Path:
+    def expand_path(cls, v: object) -> Path | None:
+        if v is None:
+            return None
         return _expand(str(v))
 
 
-class AnthropicConfig(BaseModel):
+class LLMConfig(BaseModel):
+    """Config for the LLM classifier."""
+
+    name: str = "claude"
     model: str = "claude-haiku-4-5-20251001"
     max_tokens: int = 256
 
@@ -66,13 +75,11 @@ class SenderConfig(BaseModel):
 class AppConfig(BaseModel):
     model_config = ConfigDict(frozen=False)
 
-    gmail: GmailConfig | None = None
-    anthropic: AnthropicConfig = AnthropicConfig()
+    email_provider: EmailProviderConfig = EmailProviderConfig()
+    llm: LLMConfig = LLMConfig()
     labels: LabelsConfig = LabelsConfig()
     decision_log: DecisionLogConfig = DecisionLogConfig()
     senders: list[SenderConfig]
-    provider: str = "gmail"
-    classifier: str = "claude"
 
     @model_validator(mode="after")
     def check_senders(self) -> AppConfig:
@@ -82,11 +89,11 @@ class AppConfig(BaseModel):
 
     def resolve_relative_paths(self, config_dir: Path) -> None:
         """Resolve relative paths against the directory containing the config file."""
-        if self.gmail:
-            if not self.gmail.credentials_file.is_absolute():
-                self.gmail.credentials_file = config_dir / self.gmail.credentials_file
-            if not self.gmail.token_file.is_absolute():
-                self.gmail.token_file = config_dir / self.gmail.token_file
+        ep = self.email_provider
+        if ep.credentials_file and not ep.credentials_file.is_absolute():
+            ep.credentials_file = config_dir / ep.credentials_file
+        if ep.token_file and not ep.token_file.is_absolute():
+            ep.token_file = config_dir / ep.token_file
         if not self.decision_log.path.is_absolute():
             self.decision_log.path = config_dir / self.decision_log.path
 
@@ -107,7 +114,6 @@ def load_config(config_path: Path) -> AppConfig:
     try:
         config = AppConfig.model_validate(data)
     except ValidationError as e:
-        # Reformat Pydantic errors into readable messages
         messages = []
         for err in e.errors():
             loc = " -> ".join(str(p) for p in err["loc"]) if err["loc"] else "config"

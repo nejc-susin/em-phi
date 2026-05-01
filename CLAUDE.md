@@ -59,29 +59,27 @@ src/em_phi/
 
 **Errors are non-fatal per email.** `processor._process_sender` catches exceptions from `get_message`, `classify`, and `apply_verdict` individually, calls `on_error`, and continues to the next message. Only `fetch_unread` failure aborts the whole sender.
 
-**`ANTHROPIC_API_KEY` is never in config.** The key is read from the environment in `ClaudeClassifier.__init__`. The config only holds model name and max_tokens.
+**`ANTHROPIC_API_KEY` is never in config.** The key is read from the environment in `ClaudeClassifier.__init__`. The `llm:` block only holds model name and max_tokens.
 
 ---
 
-## Adding a new provider
+## Adding a new email provider
 
 1. Create `src/em_phi/providers/myprovider.py`
 2. Implement the five methods from `providers/base.py:EmailProvider`
 3. Define a top-level `create(config: AppConfig) -> EmailProvider` function
-4. Set `provider: myprovider` in `config.yaml`
+4. In `config.yaml`, set `email_provider.name: myprovider` and put any provider-specific fields under `email_provider:` — they're preserved in `config.email_provider.model_extra`
 
-`cli.py:_build_provider` does `importlib.import_module("em_phi.providers.myprovider")` and calls `create(config)`. No other files need to change.
+`cli.py:_build_provider` dynamically imports `em_phi.providers.myprovider` and calls `create(config)`. No other files change.
 
-If your provider doesn't use Gmail credentials, omit the `gmail:` block from config — it's now optional. Only `provider: gmail` requires it.
-
-## Adding a new classifier
+## Adding a new LLM classifier
 
 1. Create `src/em_phi/classifiers/myclassifier.py`
 2. Implement `classify(email: Email, sender: SenderConfig) -> Verdict` from `classifiers/base.py:Classifier`
 3. Define a top-level `create(config: AppConfig) -> Classifier` function
-4. Set `classifier: myclassifier` in `config.yaml`
+4. In `config.yaml`, set `llm.name: myclassifier` and put any LLM-specific fields under `llm:`
 
-`cli.py:_build_classifier` does `importlib.import_module("em_phi.classifiers.myclassifier")` and calls `create(config)`. No other files need to change.
+`cli.py:_build_classifier` dynamically imports `em_phi.classifiers.myclassifier` and calls `create(config)`. No other files change.
 
 ---
 

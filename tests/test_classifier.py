@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from em_phi.classifiers.claude import ClaudeClassifier, _parse_verdict, _validate
-from em_phi.config import AnthropicConfig, SenderConfig
+from em_phi.config import LLMConfig, SenderConfig
 from em_phi.models import Verdict
 
 
@@ -64,7 +64,7 @@ def test_validate_missing_reason_raises() -> None:
 @pytest.fixture
 def classifier(monkeypatch: pytest.MonkeyPatch) -> ClaudeClassifier:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake")
-    return ClaudeClassifier(AnthropicConfig())
+    return ClaudeClassifier(LLMConfig())
 
 
 def test_classify_returns_verdict(classifier: ClaudeClassifier, relevant_email, sample_sender) -> None:
@@ -116,4 +116,4 @@ def test_classify_includes_email_content_in_user_message(
 def test_missing_api_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-        ClaudeClassifier(AnthropicConfig())
+        ClaudeClassifier(LLMConfig())

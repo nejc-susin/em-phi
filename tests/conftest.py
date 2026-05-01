@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from em_phi.config import AnthropicConfig, AppConfig, DecisionLogConfig, GmailConfig, LabelsConfig, SenderConfig
+from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, LabelsConfig, LLMConfig, SenderConfig
 from em_phi.models import Email, Verdict
 
 
@@ -38,7 +38,10 @@ def sample_sender_archive() -> SenderConfig:
 @pytest.fixture
 def sample_config(tmp_db: Path, sample_sender: SenderConfig) -> AppConfig:
     return AppConfig(
-        gmail=GmailConfig(credentials_file=Path("credentials.json"), token_file=Path("token.json")),
+        email_provider=EmailProviderConfig(
+            credentials_file=Path("credentials.json"),
+            token_file=Path("token.json"),
+        ),
         decision_log=DecisionLogConfig(path=tmp_db),
         senders=[sample_sender],
     )

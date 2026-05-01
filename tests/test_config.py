@@ -14,7 +14,7 @@ def _write_config(tmp_path: Path, data: dict) -> Path:
 
 
 _VALID_DATA = {
-    "gmail": {"credentials_file": "credentials.json", "token_file": "token.json"},
+    "email_provider": {"name": "gmail", "credentials_file": "credentials.json", "token_file": "token.json"},
     "senders": [
         {
             "email": "news@example.com",
@@ -31,7 +31,8 @@ def test_valid_config_loads(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
     assert config.senders[0].email == "news@example.com"
-    assert config.anthropic.model == "claude-haiku-4-5-20251001"
+    assert config.llm.model == "claude-haiku-4-5-20251001"
+    assert config.email_provider.name == "gmail"
 
 
 def test_missing_file_raises() -> None:
@@ -83,47 +84,67 @@ def test_invalid_tolerance_raises(tmp_path: Path) -> None:
 def test_relative_paths_resolved_to_config_dir(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
-    assert config.gmail.credentials_file == tmp_path / "credentials.json"
-    assert config.gmail.token_file == tmp_path / "token.json"
+    assert config.email_provider.credentials_file == tmp_path / "credentials.json"
+    assert config.email_provider.token_file == tmp_path / "token.json"
     assert config.decision_log.path == tmp_path / "decisions.db"
 
 
 def test_absolute_paths_unchanged(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "gmail": {
+        "email_provider": {
+            "name": "gmail",
             "credentials_file": "/absolute/credentials.json",
             "token_file": "/absolute/token.json",
         },
     }
     p = _write_config(tmp_path, data)
     config = load_config(p)
-    assert config.gmail.credentials_file == Path("/absolute/credentials.json")
+    assert config.email_provider.credentials_file == Path("/absolute/credentials.json")
 
 
 def test_tilde_expansion(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "gmail": {
+        "email_provider": {
+            "name": "gmail",
             "credentials_file": "~/secrets/credentials.json",
             "token_file": "~/secrets/token.json",
         },
     }
     p = _write_config(tmp_path, data)
     config = load_config(p)
-    assert str(config.gmail.credentials_file).startswith("/")
-    assert "~" not in str(config.gmail.credentials_file)
+    assert str(config.email_provider.credentials_file).startswith("/")
+    assert "~" not in str(config.email_provider.credentials_file)
 
 
 def test_env_var_expansion(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("EM_PHI_DATA", "/mnt/data")
     data = {
         **_VALID_DATA,
-        "gmail": {
+        "email_provider": {
+            "name": "gmail",
             "credentials_file": "$EM_PHI_DATA/credentials.json",
             "token_file": "$EM_PHI_DATA/token.json",
         },
     }
     p = _write_config(tmp_path, data)
     config = load_config(p)
-    assert config.gmail.credentials_file == Path("/mnt/data/credentials.json")
+    assert config.email_provider.credentials_file == Path("/mnt/data/credentials.json")
+
+
+def test_extra_fields_preserved_for_custom_provider(tmp_path: Path) -> None:
+    """Custom providers can put arbitrary fields under email_provider."""
+    data = {
+        **_VALID_DATA,
+        "email_provider": {
+            "name": "myimap",
+            "host": "imap.example.com",
+            "port": 993,
+        },
+    }
+    p = _write_config(tmp_path, data)
+    config = load_config(p)
+    assert config.email_provider.name == "myimap"
+    assert config.email_provider.model_extra["host"] == "imap.example.com"
+    assert config.email_provider.model_extra["port"] == 993

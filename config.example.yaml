@@ -2,28 +2,28 @@
 # Copy to config.yaml and fill in your values.
 # config.yaml is gitignored — never commit it with real credentials.
 
-# Provider and classifier selection (defaults shown).
-# To use a custom implementation, add src/em_phi/providers/myprovider.py
-# (or classifiers/myclassifier.py) with a create(config) function and set:
-#   provider: myprovider
-#   classifier: myclassifier
-provider: gmail
-classifier: claude
-
-gmail:
+# Email provider. All provider-specific settings nest under this block.
+# Built-in: gmail. Custom: add src/em_phi/providers/myprovider.py with
+# create(config) -> EmailProvider, then set name: myprovider here.
+email_provider:
+  name: gmail
   credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
   token_file: token.json               # Auto-managed refresh token (created by `em-phi setup`)
 
-anthropic:
+# LLM classifier. All LLM-specific settings nest under this block.
+# Built-in: claude. Custom: add src/em_phi/classifiers/myclassifier.py with
+# create(config) -> Classifier, then set name: myclassifier here.
+llm:
+  name: claude
   model: claude-haiku-4-5-20251001     # Claude Haiku is recommended for cost efficiency
   max_tokens: 256
 
 labels:
-  relevant: "EmPhi/Relevant"           # Applied to emails Claude considers relevant
-  irrelevant: "EmPhi/Irrelevant"       # Applied to emails Claude considers irrelevant
+  relevant: "EmPhi/Relevant"           # Applied to emails the LLM considers relevant
+  irrelevant: "EmPhi/Irrelevant"       # Applied to emails the LLM considers irrelevant
 
 decision_log:
-  path: decisions.db                   # SQLite database path (relative to working directory)
+  path: decisions.db                   # SQLite database path (relative to this file's directory)
 
 senders:
   # One entry per newsletter sender.
