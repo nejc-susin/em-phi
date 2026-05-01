@@ -54,13 +54,20 @@ class GmailProvider:
     # Message operations
     # ------------------------------------------------------------------
 
-    def fetch_unread(self, sender_email: str) -> list[str]:
-        """Return message IDs of unread messages from sender_email."""
+    def fetch_unread(self, patterns: list[str]) -> list[str]:
+        """Return message IDs of unread messages matching any of the sender patterns."""
+        froms = [_pattern_to_from(p) for p in patterns]
+        if len(froms) == 1:
+            from_clause = froms[0]
+        else:
+            from_clause = "{" + " ".join(froms) + "}"
+        query = f"{from_clause} is:unread"
+
         try:
             result = (
                 self._service.users()
                 .messages()
-                .list(userId="me", q=f"from:{sender_email} is:unread", maxResults=_MAX_RESULTS)
+                .list(userId="me", q=query, maxResults=_MAX_RESULTS)
                 .execute()
             )
         except HttpError as e:
@@ -167,6 +174,17 @@ class GmailProvider:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def _pattern_to_from(pattern: str) -> str:
+    """Convert a sender pattern to a Gmail from: query clause.
+
+    - exact email  → from:user@example.com
+    - domain only  → from:@example.com
+    """
+    if "@" not in pattern:
+        return f"from:@{pattern}"
+    return f"from:{pattern}"
+
 
 def _extract_body(payload: dict) -> str:
     """Recursively extract the plain-text body from a Gmail message payload."""

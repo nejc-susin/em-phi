@@ -30,9 +30,38 @@ _VALID_DATA = {
 def test_valid_config_loads(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
-    assert config.senders[0].email == "news@example.com"
+    assert config.senders[0].email == ["news@example.com"]
     assert config.llm.model == "claude-haiku-4-5-20251001"
     assert config.email_provider.name == "gmail"
+
+
+def test_sender_email_string_normalizes_to_list(tmp_path: Path) -> None:
+    p = _write_config(tmp_path, _VALID_DATA)
+    config = load_config(p)
+    assert isinstance(config.senders[0].email, list)
+    assert len(config.senders[0].email) == 1
+
+
+def test_sender_email_list(tmp_path: Path) -> None:
+    data = {
+        **_VALID_DATA,
+        "senders": [{**_VALID_DATA["senders"][0], "email": ["a@example.com", "b@example.com"]}],
+    }
+    p = _write_config(tmp_path, data)
+    config = load_config(p)
+    assert config.senders[0].email == ["a@example.com", "b@example.com"]
+
+
+def test_sender_email_domain_only(tmp_path: Path) -> None:
+    data = {
+        **_VALID_DATA,
+        "senders": [{**_VALID_DATA["senders"][0], "email": "example.com"}],
+    }
+    p = _write_config(tmp_path, data)
+    config = load_config(p)
+    assert config.senders[0].email == ["example.com"]
+
+
 
 
 def test_missing_file_raises() -> None:

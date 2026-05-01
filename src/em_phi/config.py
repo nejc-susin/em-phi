@@ -59,16 +59,25 @@ class DecisionLogConfig(BaseModel):
 
 
 class SenderConfig(BaseModel):
-    email: str
+    email: list[str]
     name: str
     interests: str
     tolerance: Literal["aggressive", "balanced", "conservative"] = "balanced"
     action: Literal["label", "archive"] = "label"
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: object) -> list[str]:
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, list):
+            return v
+        raise ValueError("email must be a string or list of strings")
+
     @model_validator(mode="after")
     def check_non_empty(self) -> SenderConfig:
         if not self.interests.strip():
-            raise ValueError(f"interests for sender '{self.email}' must not be empty")
+            raise ValueError(f"interests for sender '{self.email[0]}' must not be empty")
         return self
 
 

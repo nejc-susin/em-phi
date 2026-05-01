@@ -110,7 +110,7 @@ def _process_sender(
     on_email: OnEmail | None,
     on_error: OnError | None,
 ) -> SenderResult:
-    result = SenderResult(sender_email=sender.email)
+    result = SenderResult(sender_email=sender.email[0])
 
     try:
         message_ids = provider.fetch_unread(sender.email)
@@ -146,7 +146,7 @@ def _process_sender(
         if not dry_run:
             log.record(
                 message_id=msg_id,
-                sender=sender.email,
+                sender=sender.email[0],
                 subject=email.subject,
                 received_at=email.received_at,
                 verdict=verdict,

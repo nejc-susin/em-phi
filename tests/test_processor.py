@@ -220,7 +220,7 @@ def test_process_sender_skips_already_processed(
     log = DecisionLog(tmp_db)
     log.record(
         message_id="msg001",
-        sender=sample_sender.email,
+        sender=sample_sender.email[0],
         subject=relevant_email.subject,
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,

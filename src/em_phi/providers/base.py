@@ -15,8 +15,12 @@ class EmailProvider(Protocol):
         """Load credentials and verify the connection is ready."""
         ...
 
-    def fetch_unread(self, sender_email: str) -> list[str]:
-        """Return message IDs of unread messages from sender_email."""
+    def fetch_unread(self, patterns: list[str]) -> list[str]:
+        """Return message IDs of unread messages matching the given sender patterns.
+
+        Each pattern is either an exact email address or a bare domain name.
+        Multiple patterns are OR-combined.
+        """
         ...
 
     def get_message(self, message_id: str) -> Email:

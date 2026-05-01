@@ -46,7 +46,8 @@ def check_config(ctx: click.Context) -> None:
 
     click.echo(f"Senders ({len(config.senders)}):")
     for s in config.senders:
-        click.echo(f"  {s.email:<35} \"{s.name}\"  [{s.tolerance}, {s.action}]")
+        emails = ", ".join(s.email)
+        click.echo(f"  {emails:<35} \"{s.name}\"  [{s.tolerance}, {s.action}]")
 
     click.echo()
     click.echo("Paths:")
@@ -128,7 +129,7 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
 
     # Validate sender filter
     if sender:
-        known = {s.email for s in config.senders}
+        known = {e for s in config.senders for e in s.email}
         if sender not in known:
             raise click.ClickException(
                 f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
@@ -159,7 +160,7 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
         click.echo(f"  WARNING: error {context}: {exc}", err=True)
 
     senders_to_run = (
-        [s for s in config.senders if s.email == sender] if sender else config.senders
+        [s for s in config.senders if sender in s.email] if sender else config.senders
     )
 
     total_processed = total_relevant = total_irrelevant = total_skipped = total_errors = 0
