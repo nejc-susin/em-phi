@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import base64
 import email.utils
 from datetime import datetime, timezone
@@ -93,6 +94,8 @@ class GmailProvider:
 
         body = _extract_body(raw["payload"])
 
+        body = _strip_links(body)
+
         return Email(
             message_id=message_id,
             sender=sender,
@@ -168,6 +171,22 @@ class GmailProvider:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+def _strip_links(text: str) -> str:
+    """
+    Finds URLs (with or without surrounding brackets) and
+    replaces them with a placeholder.
+    """
+    # This pattern matches:
+    # 1. Optional opening bracket '<'
+    # 2. http://, https://, or www.
+    # 3. All non-whitespace characters until a closing bracket '>' or space
+    url_pattern = r'<?(?:https?://|www\.)\S+>?'
+
+    # Replace found URLs with your specific tag
+    cleaned = re.sub(url_pattern, '<link>', text)
+
+    # Clean up any potential double-spaces created during replacement
+    return " ".join(cleaned.split())
 
 def _extract_body(payload: dict) -> str:
     """Recursively extract the plain-text body from a Gmail message payload."""
