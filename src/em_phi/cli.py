@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 
 from em_phi.config import ConfigError, load_config
+from em_phi.decision_log import DecisionLog
 
 
 @click.group()
@@ -47,6 +48,50 @@ def check_config(ctx: click.Context) -> None:
     _report_path("credentials_file", config.gmail.credentials_file, missing_hint="run `em-phi setup`")
     _report_path("token_file", config.gmail.token_file, missing_hint="run `em-phi setup`")
     _report_path("decision_log", config.decision_log.path, missing_hint="created on first run")
+
+
+@cli.command("log")
+@click.option("--sender", default=None, help="Filter by sender email address.")
+@click.option("--days", default=None, type=int, help="Limit to decisions from the last N days.")
+@click.option("--limit", default=20, show_default=True, help="Maximum number of entries to show.")
+@click.pass_context
+def log_cmd(ctx: click.Context, sender: str | None, days: int | None, limit: int) -> None:
+    """Show recent decisions from the decision log."""
+    config_path: Path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    db_path = config.decision_log.path
+    if not db_path.exists():
+        raise click.ClickException(f"Decision log not found: {db_path}\nRun `em-phi run` first.")
+
+    log = DecisionLog(db_path)
+    entries = log.query(sender=sender, days=days, limit=limit)
+
+    if not entries:
+        click.echo("No entries found.")
+        return
+
+    # Header
+    click.echo(f"{'Date':<17}  {'Sender':<35}  {'Subject':<40}  {'Verdict':<16}  Action")
+    click.echo("-" * 120)
+
+    for e in entries:
+        date = e.processed_at[:16]  # "2026-05-01 08:32"
+        sender_col = e.sender[:35]
+        subject_col = (e.subject[:37] + "...") if len(e.subject) > 40 else e.subject
+        verdict_col = f"{e.verdict} ({e.confidence[:3]})"
+        click.echo(f"{date:<17}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<16}  {e.action_taken}")
+
+    totals = log.count()
+    click.echo()
+    total = sum(totals.values())
+    relevant = totals.get("relevant", 0)
+    irrelevant = totals.get("irrelevant", 0)
+    click.echo(f"Total in log: {total}  ({relevant} relevant, {irrelevant} irrelevant)")
 
 
 def _report_path(label: str, path: Path, *, missing_hint: str) -> None:
