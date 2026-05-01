@@ -16,3 +16,6 @@ config.yaml
 
 # OS
 .DS_Store
+
+# IDE
+.idea
