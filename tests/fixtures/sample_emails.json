@@ -1,0 +1,42 @@
+[
+  {
+    "id": "msg001",
+    "payload": {
+      "headers": [
+        {"name": "From", "value": "newsletter@example.com"},
+        {"name": "Subject", "value": "Python 3.14 released"},
+        {"name": "Date", "value": "Thu, 01 May 2026 08:00:00 +0000"}
+      ],
+      "mimeType": "multipart/alternative",
+      "parts": [
+        {
+          "mimeType": "text/plain",
+          "body": {
+            "data": "UHl0aG9uIDMuMTQgaXMgbm93IGF2YWlsYWJsZS4gSGlnaGxpZ2h0czogZnJlZS10aHJlYWRlZCBtb2RlIHN0YWJsZSwgSlNPTiBwYXJzaW5nIHNwZWVkdXBzLg=="
+          }
+        },
+        {
+          "mimeType": "text/html",
+          "body": {
+            "data": "PGh0bWw-PGJvZHk-UHl0aG9uIDMuMTQ8L2JvZHk-PC9odG1sPg=="
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "msg002",
+    "payload": {
+      "headers": [
+        {"name": "From", "value": "newsletter@example.com"},
+        {"name": "Subject", "value": "Join our community meetup"},
+        {"name": "Date", "value": "Thu, 01 May 2026 09:00:00 +0000"}
+      ],
+      "mimeType": "text/plain",
+      "body": {
+        "data": "V2UncmUgaG9zdGluZyBhIG1lZXR1cCBuZXh0IFNhdHVyZGF5LiBBbGwgYXJlIHdlbGNvbWUh"
+      },
+      "parts": []
+    }
+  }
+]
