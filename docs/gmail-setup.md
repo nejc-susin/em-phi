@@ -24,13 +24,14 @@ em-phi uses the Gmail API via OAuth2. You need a Google Cloud project with the G
 ## 3. Configure the OAuth consent screen
 
 1. Go to **APIs & Services** → **OAuth consent screen**
-2. Select **External** and click **Create**
+2. Click **Get started**
 3. Fill in the required fields:
    - App name: `em-phi` (or anything you like)
    - User support email: your Gmail address
-   - Developer contact email: your Gmail address
-4. Click **Save and Continue** through the remaining steps (you can skip optional fields)
-5. On the **Test users** step, click **Add users** and add your Gmail address
+   - Audience: external
+   - Contact email: your Gmail address
+4. Click **Create**
+5. On the left, go to **Audience**, scroll to **Test users**, click **Add users** and add your Gmail address
 6. Click **Save and Continue**, then **Back to Dashboard**
 
 > The app stays in "Testing" mode, which is fine for personal use. You do not need to publish it.

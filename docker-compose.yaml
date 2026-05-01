@@ -2,8 +2,6 @@ services:
   em-phi:
     build: .
     volumes:
-      # Mount your config, credentials, token, and decision log here.
-      # Run `em-phi setup` locally first to generate token.json.
       - ./data:/data
     environment:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
