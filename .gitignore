@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# uv
+uv.lock
+
+# Secrets & credentials (never commit these)
+credentials.json
+token.json
+*.db
+
+# Config with real data (use config.example.yaml as template)
+config.yaml
+
+# OS
+.DS_Store

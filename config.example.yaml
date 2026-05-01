@@ -1,0 +1,45 @@
+# email-filter configuration
+# Copy to config.yaml and fill in your values.
+# config.yaml is gitignored — never commit it with real credentials.
+
+gmail:
+  credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
+  token_file: token.json               # Auto-managed refresh token (created by `email-filter setup`)
+
+anthropic:
+  model: claude-haiku-4-5-20251001     # Claude Haiku is recommended for cost efficiency
+  max_tokens: 256
+
+labels:
+  relevant: "EmailFilter/Relevant"     # Applied to emails Claude considers relevant
+  irrelevant: "EmailFilter/Irrelevant" # Applied to emails Claude considers irrelevant
+
+decision_log:
+  path: decisions.db                   # SQLite database path (relative to working directory)
+
+senders:
+  # One entry per newsletter sender.
+  # 'interests' is a natural-language description of what you want to see from this sender.
+  # 'tolerance' controls how aggressively irrelevant emails are filtered:
+  #   aggressive  — archive anything not clearly relevant; when in doubt, archive
+  #   balanced    — keep somewhat relevant emails; archive only clearly irrelevant ones
+  #   conservative — keep anything even slightly relevant; archive only obvious misses
+  # 'action' controls what happens to irrelevant emails:
+  #   label   — apply the irrelevant label only (safe default while you build trust)
+  #   archive — label + remove from inbox
+
+  - email: newsletter@example.com
+    name: "Example Newsletter"
+    interests: |
+      I care about Python releases, security updates, and new PEP proposals.
+      I don't care about community events, job postings, or merchandise.
+    tolerance: balanced
+    action: label
+
+  - email: weekly@techdigest.com
+    name: "Tech Digest"
+    interests: |
+      I want articles about distributed systems, database internals, and Rust.
+      Skip anything about AI hype, crypto, or social media trends.
+    tolerance: conservative
+    action: label
