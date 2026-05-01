@@ -2,6 +2,14 @@
 # Copy to config.yaml and fill in your values.
 # config.yaml is gitignored — never commit it with real credentials.
 
+# Provider and classifier selection (defaults shown).
+# To use a custom implementation, add src/em_phi/providers/myprovider.py
+# (or classifiers/myclassifier.py) with a create(config) function and set:
+#   provider: myprovider
+#   classifier: myclassifier
+provider: gmail
+classifier: claude
+
 gmail:
   credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
   token_file: token.json               # Auto-managed refresh token (created by `em-phi setup`)

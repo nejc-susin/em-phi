@@ -1,10 +1,13 @@
+import importlib
 from pathlib import Path
 
 import click
 
-from em_phi.config import ConfigError, load_config
+from em_phi.classifiers.base import Classifier
+from em_phi.config import AppConfig, ConfigError, load_config
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
+from em_phi.providers.base import EmailProvider
 
 
 @click.group()
@@ -35,7 +38,8 @@ def check_config(ctx: click.Context) -> None:
         raise click.ClickException(str(e))
 
     click.echo(f"Config:       {config_path.resolve()}")
-    click.echo(f"Model:        {config.anthropic.model}  (max_tokens={config.anthropic.max_tokens})")
+    click.echo(f"Provider:     {config.provider}")
+    click.echo(f"Classifier:   {config.classifier}  (model={config.anthropic.model})")
     click.echo(f"Labels:       {config.labels.relevant} / {config.labels.irrelevant}")
     click.echo(f"Decision log: {config.decision_log.path}")
     click.echo()
@@ -46,8 +50,9 @@ def check_config(ctx: click.Context) -> None:
 
     click.echo()
     click.echo("Paths:")
-    _report_path("credentials_file", config.gmail.credentials_file, missing_hint="run `em-phi setup`")
-    _report_path("token_file", config.gmail.token_file, missing_hint="run `em-phi setup`")
+    if config.gmail:
+        _report_path("credentials_file", config.gmail.credentials_file, missing_hint="run `em-phi setup`")
+        _report_path("token_file", config.gmail.token_file, missing_hint="run `em-phi setup`")
     _report_path("decision_log", config.decision_log.path, missing_hint="created on first run")
 
 
@@ -143,9 +148,7 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
     labels/archiving based on the verdict, and logs every decision.
     Use --dry-run to preview what would happen without touching Gmail.
     """
-    from em_phi.classifiers.claude import ClaudeClassifier
     from em_phi.processor import process_all
-    from em_phi.providers.gmail import GmailProvider
 
     config_path: Path = ctx.obj["config_path"]
 
@@ -166,17 +169,14 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
                 f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
             )
 
-    provider = GmailProvider(
-        credentials_file=config.gmail.credentials_file,
-        token_file=config.gmail.token_file,
-    )
+    provider = _build_provider(config)
     try:
         provider.authenticate()
     except RuntimeError as e:
         raise click.ClickException(str(e))
 
     try:
-        classifier = ClaudeClassifier(config.anthropic)
+        classifier = _build_classifier(config)
     except RuntimeError as e:
         raise click.ClickException(str(e))
 
@@ -240,6 +240,56 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
     if total_errors:
         summary_parts.append(f"{total_errors} errors")
     click.echo(f"Run complete: {', '.join(summary_parts)}")
+
+
+def _build_provider(config: AppConfig) -> EmailProvider:
+    """Instantiate the email provider named in config.provider.
+
+    Built-in: "gmail"
+    Custom:   add src/em_phi/providers/myprovider.py with create(config) -> EmailProvider
+    """
+    name = config.provider
+    if name == "gmail":
+        from em_phi.providers.gmail import GmailProvider
+        if config.gmail is None:
+            raise click.ClickException(
+                "Provider 'gmail' requires a [gmail] section in config.yaml."
+            )
+        return GmailProvider(config.gmail.credentials_file, config.gmail.token_file)
+    try:
+        module = importlib.import_module(f"em_phi.providers.{name}")
+    except ImportError as e:
+        raise click.ClickException(
+            f"Unknown provider '{name}': cannot import em_phi.providers.{name}\n{e}"
+        )
+    if not hasattr(module, "create"):
+        raise click.ClickException(
+            f"em_phi.providers.{name} must define create(config: AppConfig) -> EmailProvider"
+        )
+    return module.create(config)
+
+
+def _build_classifier(config: AppConfig) -> Classifier:
+    """Instantiate the classifier named in config.classifier.
+
+    Built-in: "claude"
+    Custom:   add src/em_phi/classifiers/myclassifier.py with create(config) -> Classifier
+    """
+    name = config.classifier
+    if name == "claude":
+        from em_phi.classifiers.claude import ClaudeClassifier
+        return ClaudeClassifier(config.anthropic)
+    try:
+        module = importlib.import_module(f"em_phi.classifiers.{name}")
+    except ImportError as e:
+        raise click.ClickException(
+            f"Unknown classifier '{name}': cannot import em_phi.classifiers.{name}\n{e}"
+        )
+    if not hasattr(module, "create"):
+        raise click.ClickException(
+            f"em_phi.classifiers.{name} must define create(config: AppConfig) -> Classifier"
+        )
+    return module.create(config)
 
 
 def _report_path(label: str, path: Path, *, missing_hint: str) -> None:

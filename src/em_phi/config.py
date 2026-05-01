@@ -66,11 +66,13 @@ class SenderConfig(BaseModel):
 class AppConfig(BaseModel):
     model_config = ConfigDict(frozen=False)
 
-    gmail: GmailConfig
+    gmail: GmailConfig | None = None
     anthropic: AnthropicConfig = AnthropicConfig()
     labels: LabelsConfig = LabelsConfig()
     decision_log: DecisionLogConfig = DecisionLogConfig()
     senders: list[SenderConfig]
+    provider: str = "gmail"
+    classifier: str = "claude"
 
     @model_validator(mode="after")
     def check_senders(self) -> AppConfig:
@@ -80,10 +82,11 @@ class AppConfig(BaseModel):
 
     def resolve_relative_paths(self, config_dir: Path) -> None:
         """Resolve relative paths against the directory containing the config file."""
-        if not self.gmail.credentials_file.is_absolute():
-            self.gmail.credentials_file = config_dir / self.gmail.credentials_file
-        if not self.gmail.token_file.is_absolute():
-            self.gmail.token_file = config_dir / self.gmail.token_file
+        if self.gmail:
+            if not self.gmail.credentials_file.is_absolute():
+                self.gmail.credentials_file = config_dir / self.gmail.credentials_file
+            if not self.gmail.token_file.is_absolute():
+                self.gmail.token_file = config_dir / self.gmail.token_file
         if not self.decision_log.path.is_absolute():
             self.decision_log.path = config_dir / self.decision_log.path
 

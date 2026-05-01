@@ -65,15 +65,23 @@ src/em_phi/
 
 ## Adding a new provider
 
-1. Create `src/em_phi/providers/yourprovider.py`
+1. Create `src/em_phi/providers/myprovider.py`
 2. Implement the five methods from `providers/base.py:EmailProvider`
-3. Instantiate your provider in `cli.py:run_cmd` instead of `GmailProvider`
+3. Define a top-level `create(config: AppConfig) -> EmailProvider` function
+4. Set `provider: myprovider` in `config.yaml`
+
+`cli.py:_build_provider` does `importlib.import_module("em_phi.providers.myprovider")` and calls `create(config)`. No other files need to change.
+
+If your provider doesn't use Gmail credentials, omit the `gmail:` block from config — it's now optional. Only `provider: gmail` requires it.
 
 ## Adding a new classifier
 
-1. Create `src/em_phi/classifiers/yourclassifier.py`
-2. Implement `classify(email, sender) -> Verdict` from `classifiers/base.py:Classifier`
-3. Instantiate your classifier in `cli.py:run_cmd` instead of `ClaudeClassifier`
+1. Create `src/em_phi/classifiers/myclassifier.py`
+2. Implement `classify(email: Email, sender: SenderConfig) -> Verdict` from `classifiers/base.py:Classifier`
+3. Define a top-level `create(config: AppConfig) -> Classifier` function
+4. Set `classifier: myclassifier` in `config.yaml`
+
+`cli.py:_build_classifier` does `importlib.import_module("em_phi.classifiers.myclassifier")` and calls `create(config)`. No other files need to change.
 
 ---
 
