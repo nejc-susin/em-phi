@@ -4,6 +4,7 @@ import click
 
 from em_phi.config import ConfigError, load_config
 from em_phi.decision_log import DecisionLog
+from em_phi.models import Email, Verdict
 
 
 @click.group()
@@ -129,6 +130,116 @@ def setup(ctx: click.Context) -> None:
 
     click.echo(f"Authorization complete. Token saved to: {config.gmail.token_file}")
     click.echo("You can now run `em-phi run` to process emails.")
+
+
+@cli.command("run")
+@click.option("--dry-run", is_flag=True, help="Classify emails but do not label, archive, or log.")
+@click.option("--sender", default=None, help="Process only this sender email address.")
+@click.pass_context
+def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
+    """Process new emails from configured senders.
+
+    Fetches unread messages, classifies each one with Claude, applies
+    labels/archiving based on the verdict, and logs every decision.
+    Use --dry-run to preview what would happen without touching Gmail.
+    """
+    from em_phi.classifiers.claude import ClaudeClassifier
+    from em_phi.processor import process_all
+    from em_phi.providers.gmail import GmailProvider
+
+    config_path: Path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    if dry_run:
+        click.echo("[DRY RUN] No changes will be made to Gmail or the decision log.")
+        click.echo()
+
+    # Validate sender filter
+    if sender:
+        known = {s.email for s in config.senders}
+        if sender not in known:
+            raise click.ClickException(
+                f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
+            )
+
+    provider = GmailProvider(
+        credentials_file=config.gmail.credentials_file,
+        token_file=config.gmail.token_file,
+    )
+    try:
+        provider.authenticate()
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
+
+    try:
+        classifier = ClaudeClassifier(config.anthropic)
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
+
+    log = DecisionLog(config.decision_log.path)
+
+    # Track current sender for section headers
+    _current_sender: list[str] = []
+
+    def on_email(email: Email, verdict: Verdict, action: str, is_dry: bool) -> None:
+        verdict_tag = f"{verdict.verdict:<11} / {verdict.confidence:<6}"
+        dry_tag = "[DRY RUN] " if is_dry else ""
+        click.echo(f"  {dry_tag}[{verdict_tag}] {email.subject[:60]}  →  {action}")
+
+    def on_error(context: str, exc: Exception) -> None:
+        click.echo(f"  WARNING: error {context}: {exc}", err=True)
+
+    senders_to_run = (
+        [s for s in config.senders if s.email == sender] if sender else config.senders
+    )
+
+    total_processed = total_relevant = total_irrelevant = total_skipped = total_errors = 0
+
+    for s in senders_to_run:
+        click.echo(f"Processing {s.email} (\"{s.name}\")...")
+
+        from em_phi.processor import _process_sender
+        result = _process_sender(
+            sender=s,
+            config=config,
+            provider=provider,
+            classifier=classifier,
+            log=log,
+            dry_run=dry_run,
+            on_email=on_email,
+            on_error=on_error,
+        )
+
+        parts = [
+            f"{result.processed} processed",
+            f"{result.relevant} relevant",
+            f"{result.irrelevant} irrelevant",
+            f"{result.skipped} skipped",
+        ]
+        if result.errors:
+            parts.append(f"{result.errors} errors")
+        click.echo(f"  Done: {', '.join(parts)}")
+        click.echo()
+
+        total_processed += result.processed
+        total_relevant += result.relevant
+        total_irrelevant += result.irrelevant
+        total_skipped += result.skipped
+        total_errors += result.errors
+
+    summary_parts = [
+        f"{total_processed} processed",
+        f"{total_relevant} relevant",
+        f"{total_irrelevant} irrelevant",
+        f"{total_skipped} skipped",
+    ]
+    if total_errors:
+        summary_parts.append(f"{total_errors} errors")
+    click.echo(f"Run complete: {', '.join(summary_parts)}")
 
 
 def _report_path(label: str, path: Path, *, missing_hint: str) -> None:
