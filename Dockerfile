@@ -27,6 +27,11 @@ VOLUME ["/data"]
 
 ENV EM_PHI_CONFIG=/data/config.yaml
 
+# Port used by web mode (em-phi serve). Not needed for headless cron mode.
+EXPOSE 8080
+
 # ENTRYPOINT ["em-phi"]
 ENTRYPOINT ["uv", "run", "em-phi"]
-CMD ["run"]
+# Default: headless run. Override with CMD ["serve"] for web mode.
+#CMD ["run"]
+CMD ["serve"]

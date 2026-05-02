@@ -1,10 +1,24 @@
 services:
-  em-phi:
-    build: .
-    volumes:
-      - ./data:/data
-    environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      EM_PHI_CONFIG: /data/config.yaml
-    # Uncomment to run on a schedule via docker-compose (or use cron/systemd instead):
-    # restart: "no"
+  # Headless mode: run once and exit (invoke via host cron or systemd timer)
+#  em-phi:
+#    build: .
+#    volumes:
+#      - ./data:/data
+#    environment:
+#      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+#      EM_PHI_CONFIG: /data/config.yaml
+#    # Default CMD is "run". Override with: command: ["run", "--dry-run"]
+
+  # Web mode: always-on dashboard with built-in scheduler
+  # Requires a 'web:' block in config.yaml (see config.example.yaml)
+  em-phi-web:
+   build: .
+   command: ["serve"]
+   volumes:
+     - ./data:/data
+   environment:
+     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+     EM_PHI_CONFIG: /data/config.yaml
+   ports:
+     - "8080:8080"
+   restart: unless-stopped

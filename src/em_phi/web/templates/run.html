@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Run — em-phi{% endblock %}
+{% block content %}
+{% set active = "run" %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-semibold text-gray-900">Run</h1>
+  {% if last_run %}
+  <p class="text-sm text-gray-500">
+    Last run: {{ last_run.finished_at.strftime('%Y-%m-%d %H:%M') }}
+    — {{ last_run.summary.processed }} processed,
+    {{ last_run.summary.relevant }} relevant{% if last_run.dry_run %} <span class="text-amber-600">(dry run)</span>{% endif %}
+  </p>
+  {% endif %}
+</div>
+
+<!-- Controls -->
+<div class="bg-white shadow rounded-lg p-6 mb-6">
+  <div class="flex flex-wrap gap-4 items-end">
+    <div>
+      <label for="sender-select" class="block text-sm font-medium text-gray-700 mb-1">Sender</label>
+      <select id="sender-select" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="">All senders</option>
+        {% for s in senders %}
+        <option value="{{ s.email[0] }}">{{ s.name }} ({{ s.email[0] }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="dry-run-toggle" class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+      <label for="dry-run-toggle" class="text-sm text-gray-700">Dry run</label>
+    </div>
+    <button id="run-btn" onclick="startRun()"
+      class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded transition-colors">
+      {% if is_running %}Running…{% else %}Run now{% endif %}
+    </button>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="results" class="space-y-2"></div>
+<div id="summary" class="hidden mt-4 bg-gray-50 border border-gray-200 rounded-lg px-5 py-4 text-sm text-gray-700"></div>
+
+<script>
+let eventSource = null;
+
+{% if is_running %}
+document.getElementById('run-btn').disabled = true;
+{% endif %}
+
+function startRun() {
+  const btn = document.getElementById('run-btn');
+  const results = document.getElementById('results');
+  const summary = document.getElementById('summary');
+  const sender = document.getElementById('sender-select').value;
+  const dryRun = document.getElementById('dry-run-toggle').checked;
+
+  if (eventSource) eventSource.close();
+  results.innerHTML = '';
+  summary.classList.add('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+
+  let url = `/run/stream?dry_run=${dryRun}`;
+  if (sender) url += `&sender=${encodeURIComponent(sender)}`;
+
+  eventSource = new EventSource(url);
+
+  eventSource.onmessage = function(e) {
+    const data = JSON.parse(e.data);
+
+    if (data.type === 'verdict') {
+      const card = document.createElement('div');
+      const isRelevant = data.verdict === 'relevant';
+      const borderColor = isRelevant ? 'border-green-200' : 'border-gray-200';
+      const badgeColor = isRelevant
+        ? 'bg-green-100 text-green-800'
+        : 'bg-gray-100 text-gray-600';
+      const dryTag = data.dry_run ? '<span class="text-xs text-amber-600 ml-2">dry run</span>' : '';
+      card.className = `bg-white shadow-sm border ${borderColor} rounded-lg px-4 py-3 flex items-start gap-3`;
+      card.innerHTML = `
+        <span class="text-xs font-medium px-2 py-1 rounded ${badgeColor} mt-0.5 shrink-0">${data.verdict}</span>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-900 truncate">${escHtml(data.subject)}</p>
+          <p class="text-xs text-gray-500 mt-0.5">${escHtml(data.reason)}${dryTag}</p>
+        </div>
+        <span class="text-xs text-gray-400 ml-auto shrink-0">${escHtml(data.action)}</span>
+      `;
+      results.appendChild(card);
+    } else if (data.type === 'error') {
+      const card = document.createElement('div');
+      card.className = 'bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700';
+      card.textContent = `Error: ${data.message || data.context}`;
+      results.appendChild(card);
+    } else if (data.type === 'done') {
+      eventSource.close();
+      btn.disabled = false;
+      btn.textContent = 'Run now';
+      summary.classList.remove('hidden');
+      summary.textContent = `Done — ${data.processed} processed, ${data.relevant} relevant, ${data.irrelevant} irrelevant, ${data.skipped} skipped${data.errors ? ', ' + data.errors + ' errors' : ''}`;
+    }
+  };
+
+  eventSource.onerror = function() {
+    eventSource.close();
+    btn.disabled = false;
+    btn.textContent = 'Run now';
+  };
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

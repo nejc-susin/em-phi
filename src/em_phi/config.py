@@ -96,6 +96,18 @@ class SenderConfig(BaseModel):
         return self
 
 
+class ScheduleConfig(BaseModel):
+    enabled: bool = False
+    interval_hours: int | None = 6
+    cron: str | None = None  # takes precedence over interval_hours if set
+
+
+class WebConfig(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 8080
+    auth_token: str  # required — no default; em-phi serve fails fast if absent
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(frozen=False)
 
@@ -104,6 +116,8 @@ class AppConfig(BaseModel):
     labels: LabelsConfig = LabelsConfig()
     decision_log: DecisionLogConfig = DecisionLogConfig()
     logging: LoggingConfig = LoggingConfig()
+    schedule: ScheduleConfig = ScheduleConfig()
+    web: WebConfig | None = None
     senders: list[SenderConfig]
 
     @model_validator(mode="after")

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Log — em-phi{% endblock %}
+{% block content %}
+{% set active = "log" %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-xl font-semibold text-gray-900">Decision log</h1>
+  <div class="text-sm text-gray-500">
+    {{ counts.get('relevant', 0) }} relevant &middot; {{ counts.get('irrelevant', 0) }} irrelevant
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" action="/log" class="bg-white shadow rounded-lg p-4 mb-6 flex flex-wrap gap-3 items-end">
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Sender</label>
+    <select name="sender" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="">All</option>
+      {% for s in known_senders %}
+      <option value="{{ s }}" {% if filter_sender == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Days</label>
+    <input name="days" type="number" min="1" value="{{ filter_days or '' }}" placeholder="All time"
+      class="border border-gray-300 rounded px-3 py-1.5 text-sm w-24 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Limit</label>
+    <input name="limit" type="number" min="1" value="{{ filter_limit }}"
+      class="border border-gray-300 rounded px-3 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+  <button type="submit" class="bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Filter</button>
+  <a href="/log" class="text-sm text-gray-500 hover:text-gray-700 py-1.5">Clear</a>
+</form>
+
+{% if entries %}
+<div class="bg-white shadow rounded-lg overflow-hidden">
+  <table class="min-w-full divide-y divide-gray-200 text-sm">
+    <thead class="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Date</th>
+        <th class="px-4 py-3 text-left">Sender</th>
+        <th class="px-4 py-3 text-left">Subject</th>
+        <th class="px-4 py-3 text-left">Verdict</th>
+        <th class="px-4 py-3 text-left">Reason</th>
+        <th class="px-4 py-3 text-left">Action</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for e in entries %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ e.processed_at[:16] }}</td>
+        <td class="px-4 py-3 text-gray-700 max-w-[200px] truncate">{{ e.sender }}</td>
+        <td class="px-4 py-3 text-gray-900 max-w-[280px] truncate">{{ e.subject }}</td>
+        <td class="px-4 py-3 whitespace-nowrap">
+          {% if e.verdict == 'relevant' %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+            relevant · {{ e.confidence[:3] }}
+          </span>
+          {% else %}
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+            irrelevant · {{ e.confidence[:3] }}
+          </span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500 max-w-[300px] truncate" title="{{ e.reason }}">{{ e.reason }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ e.action_taken }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white shadow rounded-lg px-6 py-12 text-center text-gray-400">
+  No decisions found. Run em-phi to start filtering emails.
+</div>
+{% endif %}
+{% endblock %}

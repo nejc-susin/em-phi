@@ -1,6 +1,5 @@
 import importlib
 import logging
-from dataclasses import replace
 from pathlib import Path
 
 import click
@@ -222,8 +221,7 @@ def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
     Useful for checking what Claude would see before a real run.
     Only works with the built-in Claude classifier.
     """
-    from em_phi.classifiers.claude import build_prompt
-    from em_phi.processor import _prepare_body
+    from em_phi.debug import fetch_debug_info
 
     config_path: Path = ctx.obj["config_path"]
 
@@ -250,53 +248,55 @@ def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
     except RuntimeError as e:
         raise click.ClickException(str(e))
 
-    senders_to_inspect = (
-        [s for s in config.senders if sender in s.email] if sender else config.senders
-    )
+    try:
+        infos = fetch_debug_info(config, provider, sender_filter=sender, limit=limit)
+    except RuntimeError as e:
+        raise click.ClickException(str(e))
 
-    found = 0
-    for s in senders_to_inspect:
-        if found >= limit:
-            break
-
-        try:
-            message_ids = provider.fetch_unread(s.email)
-        except RuntimeError as e:
-            click.echo(f"  WARNING: could not fetch from {s.email[0]}: {e}", err=True)
-            continue
-
-        for msg_id in message_ids:
-            if found >= limit:
-                break
-
-            try:
-                email = provider.get_message(msg_id)
-            except RuntimeError as e:
-                click.echo(f"  WARNING: could not fetch message {msg_id}: {e}", err=True)
-                continue
-
-            email_with_processed_body = replace(email, body=_prepare_body(email.body))
-            system_prompt, user_message = build_prompt(email_with_processed_body, s)
-
-            found += 1
-            width = 72
-            click.echo("=" * width)
-            click.echo(f"  Email {found}/{limit}  |  {msg_id}")
-            click.echo(f"  Sender:  {email.sender}")
-            click.echo(f"  Subject: {email.subject}")
-            click.echo(f"  Date:    {email.received_at.strftime('%Y-%m-%d %H:%M UTC')}")
-            click.echo(f"  Body:    {len(email.body)} chars raw → {len(email_with_processed_body.body)} chars after preprocessing")
-            click.echo("=" * width)
-            click.echo()
-            click.echo("--- SYSTEM PROMPT " + "-" * (width - 18))
-            click.echo(system_prompt)
-            click.echo()
-            click.echo("--- USER MESSAGE " + "-" * (width - 17))
-            click.echo(user_message)
-            click.echo()
-
-    if found == 0:
+    if not infos:
         click.echo("No unread emails found for the specified sender(s).")
+        return
+
+    width = 72
+    for i, info in enumerate(infos, 1):
+        click.echo("=" * width)
+        click.echo(f"  Email {i}/{len(infos)}  |  {info.email.message_id}")
+        click.echo(f"  Sender:  {info.email.sender}")
+        click.echo(f"  Subject: {info.email.subject}")
+        click.echo(f"  Date:    {info.email.received_at.strftime('%Y-%m-%d %H:%M UTC')}")
+        click.echo(f"  Body:    {len(info.email.body)} chars raw → {len(info.processed_email.body)} chars after preprocessing")
+        click.echo("=" * width)
+        click.echo()
+        click.echo("--- SYSTEM PROMPT " + "-" * (width - 18))
+        click.echo(info.system_prompt)
+        click.echo()
+        click.echo("--- USER MESSAGE " + "-" * (width - 17))
+        click.echo(info.user_message)
+        click.echo()
+
+
+@cli.command("serve")
+@click.pass_context
+def serve_cmd(ctx: click.Context) -> None:
+    """Start the web UI with optional in-process scheduler."""
+    config_path: Path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    if not config.web:
+        raise click.ClickException(
+            "No 'web:' block found in config. Add one to use 'em-phi serve'.\n\n"
+            "Example:\n  web:\n    host: 127.0.0.1\n    port: 8080\n    auth_token: your-secret-token"
+        )
+
+    import uvicorn
+    from em_phi.web.app import create_app
+
+    app = create_app(config, config_path)
+    uvicorn.run(app, host=config.web.host, port=config.web.port)
 
 
 def _build_provider(config: AppConfig) -> EmailProvider:

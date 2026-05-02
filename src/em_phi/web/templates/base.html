@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}em-phi{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
+</head>
+<body class="h-full">
+  <div class="min-h-full">
+    <nav class="bg-gray-900 text-white">
+      <div class="max-w-6xl mx-auto px-4 flex items-center gap-6 h-12">
+        <span class="font-semibold text-indigo-400 tracking-wide">em-phi</span>
+        <a href="/run" class="text-sm hover:text-indigo-300 {% if active == 'run' %}text-white font-medium{% else %}text-gray-400{% endif %}">Run</a>
+        <a href="/log" class="text-sm hover:text-indigo-300 {% if active == 'log' %}text-white font-medium{% else %}text-gray-400{% endif %}">Log</a>
+        <a href="/debug" class="text-sm hover:text-indigo-300 {% if active == 'debug' %}text-white font-medium{% else %}text-gray-400{% endif %}">Debug</a>
+        <a href="/config" class="text-sm hover:text-indigo-300 {% if active == 'config' %}text-white font-medium{% else %}text-gray-400{% endif %}">Config</a>
+        <form method="post" action="/logout" class="ml-auto">
+          <button type="submit" class="text-xs text-gray-500 hover:text-gray-300">Sign out</button>
+        </form>
+      </div>
+    </nav>
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

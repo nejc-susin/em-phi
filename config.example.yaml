@@ -30,6 +30,16 @@ decision_log:
 #   level: WARNING    # DEBUG | INFO | WARNING | ERROR (default: WARNING = silent)
 #   file: null        # optional path; writes timestamped log there in addition to console
 
+# schedule:           # only used in web mode (em-phi serve). Ignored by em-phi run.
+#   enabled: false
+#   interval_hours: 6
+#   # cron: "0 */6 * * *"   # cron expression; takes precedence over interval_hours if set
+
+# web:                # required to use em-phi serve. Remove or omit for headless cron mode.
+#   host: 127.0.0.1
+#   port: 8080
+#   auth_token: change-me   # CHANGE THIS — protects the config editor and run controls
+
 senders:
   # One entry per newsletter sender.
   # 'interests' is a natural-language description of what you want to see from this sender.
