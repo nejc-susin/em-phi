@@ -26,7 +26,7 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
 
     async def scheduled_run() -> None:
         from em_phi.web.routes.run import execute_run
-        await execute_run(state, dry_run=False, sender_filter=None)
+        await execute_run(state, dry_run=False, rule_filter=None)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:

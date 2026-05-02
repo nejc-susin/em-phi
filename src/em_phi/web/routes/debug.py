@@ -11,20 +11,20 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     r = APIRouter()
 
     @r.get("/debug", response_class=HTMLResponse)
-    async def debug_page(request: Request, sender: str | None = None, limit: int = 1):
+    async def debug_page(request: Request, rule: str | None = None, limit: int = 1):
         from em_phi.cli import _build_provider
         from em_phi.debug import fetch_debug_info
 
         infos = []
         error: str | None = None
-        known_senders = sorted({e for s in state.config.senders for e in s.email})
+        known_rules = sorted({e for r in state.config.rules for e in r.email})
 
-        if sender:
+        if rule:
             try:
                 provider = _build_provider(state.config)
                 provider.authenticate()
                 infos = fetch_debug_info(
-                    state.config, provider, sender_filter=sender, limit=limit
+                    state.config, provider, rule_filter=rule, limit=limit
                 )
             except Exception as exc:
                 error = str(exc)
@@ -32,9 +32,9 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
         return templates.TemplateResponse(request, "debug.html", {
             "infos": infos,
             "error": error,
-            "selected_sender": sender,
+            "selected_rule": rule,
             "limit": limit,
-            "known_senders": known_senders,
+            "known_rules": known_rules,
         })
 
     return r

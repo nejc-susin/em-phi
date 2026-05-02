@@ -15,7 +15,7 @@ def _write_config(tmp_path: Path, data: dict) -> Path:
 
 _VALID_DATA = {
     "email_provider": {"name": "gmail", "credentials_file": "credentials.json", "token_file": "token.json"},
-    "senders": [
+    "rules": [
         {
             "email": "news@example.com",
             "name": "Example",
@@ -30,36 +30,36 @@ _VALID_DATA = {
 def test_valid_config_loads(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
-    assert config.senders[0].email == ["news@example.com"]
+    assert config.rules[0].email == ["news@example.com"]
     assert config.llm.model == "claude-haiku-4-5-20251001"
     assert config.email_provider.name == "gmail"
 
 
-def test_sender_email_string_normalizes_to_list(tmp_path: Path) -> None:
+def test_rule_email_string_normalizes_to_list(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
-    assert isinstance(config.senders[0].email, list)
-    assert len(config.senders[0].email) == 1
+    assert isinstance(config.rules[0].email, list)
+    assert len(config.rules[0].email) == 1
 
 
-def test_sender_email_list(tmp_path: Path) -> None:
+def test_rule_email_list(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "senders": [{**_VALID_DATA["senders"][0], "email": ["a@example.com", "b@example.com"]}],
+        "rules": [{**_VALID_DATA["rules"][0], "email": ["a@example.com", "b@example.com"]}],
     }
     p = _write_config(tmp_path, data)
     config = load_config(p)
-    assert config.senders[0].email == ["a@example.com", "b@example.com"]
+    assert config.rules[0].email == ["a@example.com", "b@example.com"]
 
 
-def test_sender_email_domain_only(tmp_path: Path) -> None:
+def test_rule_email_domain_only(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "senders": [{**_VALID_DATA["senders"][0], "email": "example.com"}],
+        "rules": [{**_VALID_DATA["rules"][0], "email": "example.com"}],
     }
     p = _write_config(tmp_path, data)
     config = load_config(p)
-    assert config.senders[0].email == ["example.com"]
+    assert config.rules[0].email == ["example.com"]
 
 
 
@@ -76,24 +76,24 @@ def test_bad_yaml_raises(tmp_path: Path) -> None:
         load_config(p)
 
 
-def test_missing_senders_raises(tmp_path: Path) -> None:
-    data = {k: v for k, v in _VALID_DATA.items() if k != "senders"}
+def test_missing_rules_raises(tmp_path: Path) -> None:
+    data = {k: v for k, v in _VALID_DATA.items() if k != "rules"}
     p = _write_config(tmp_path, data)
-    with pytest.raises(ConfigError, match="senders"):
+    with pytest.raises(ConfigError, match="rules"):
         load_config(p)
 
 
-def test_empty_senders_raises(tmp_path: Path) -> None:
-    data = {**_VALID_DATA, "senders": []}
+def test_empty_rules_raises(tmp_path: Path) -> None:
+    data = {**_VALID_DATA, "rules": []}
     p = _write_config(tmp_path, data)
-    with pytest.raises(ConfigError, match="at least one sender"):
+    with pytest.raises(ConfigError, match="at least one rule"):
         load_config(p)
 
 
 def test_empty_interests_raises(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "senders": [{**_VALID_DATA["senders"][0], "interests": "   "}],
+        "rules": [{**_VALID_DATA["rules"][0], "interests": "   "}],
     }
     p = _write_config(tmp_path, data)
     with pytest.raises(ConfigError, match="interests"):
@@ -103,7 +103,7 @@ def test_empty_interests_raises(tmp_path: Path) -> None:
 def test_invalid_tolerance_raises(tmp_path: Path) -> None:
     data = {
         **_VALID_DATA,
-        "senders": [{**_VALID_DATA["senders"][0], "tolerance": "yolo"}],
+        "rules": [{**_VALID_DATA["rules"][0], "tolerance": "yolo"}],
     }
     p = _write_config(tmp_path, data)
     with pytest.raises(ConfigError):

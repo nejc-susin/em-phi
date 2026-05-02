@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from em_phi.config import AppConfig, ConfigError, SenderConfig, load_config
+from em_phi.config import AppConfig, ConfigError, RuleConfig, load_config
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -25,12 +25,12 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             "error": None,
         })
 
-    @r.post("/config/sender/add")
-    async def add_sender(request: Request):
+    @r.post("/config/rule/add")
+    async def add_rule(request: Request):
         form = await request.form()
         error = None
         try:
-            new_sender = SenderConfig(
+            new_rule = RuleConfig(
                 email=_parse_emails(str(form.get("email", ""))),
                 name=str(form.get("name", "")).strip(),
                 interests=str(form.get("interests", "")).strip(),
@@ -38,7 +38,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
                 action=str(form.get("action", "label")),
             )
             config = state.config
-            config.senders = [*config.senders, new_sender]
+            config.rules = [*config.rules, new_rule]
             _save_and_reload(state, config, scheduler)
         except Exception as exc:
             error = str(exc)
@@ -49,15 +49,15 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             }, status_code=422)
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
-    @r.post("/config/sender/{index}/edit")
-    async def edit_sender(request: Request, index: int):
+    @r.post("/config/rule/{index}/edit")
+    async def edit_rule(request: Request, index: int):
         form = await request.form()
         error = None
         try:
-            senders = list(state.config.senders)
-            if index < 0 or index >= len(senders):
-                raise ValueError(f"Invalid sender index {index}")
-            senders[index] = SenderConfig(
+            rules = list(state.config.rules)
+            if index < 0 or index >= len(rules):
+                raise ValueError(f"Invalid rule index {index}")
+            rules[index] = RuleConfig(
                 email=str(form.get("email", "")).strip(),
                 name=str(form.get("name", "")).strip(),
                 interests=str(form.get("interests", "")).strip(),
@@ -65,7 +65,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
                 action=str(form.get("action", "label")),
             )
             config = state.config
-            config.senders = senders
+            config.rules = rules
             _save_and_reload(state, config, scheduler)
         except Exception as exc:
             error = str(exc)
@@ -76,13 +76,13 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             }, status_code=422)
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
-    @r.post("/config/sender/{index}/delete")
-    async def delete_sender(request: Request, index: int):
-        senders = list(state.config.senders)
-        if 0 <= index < len(senders):
-            senders.pop(index)
+    @r.post("/config/rule/{index}/delete")
+    async def delete_rule(request: Request, index: int):
+        rules = list(state.config.rules)
+        if 0 <= index < len(rules):
+            rules.pop(index)
             config = state.config
-            config.senders = senders
+            config.rules = rules
             _save_and_reload(state, config, scheduler)
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
@@ -157,7 +157,7 @@ def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiSchedul
 
     async def scheduled_run() -> None:
         from em_phi.web.routes.run import execute_run
-        await execute_run(state, dry_run=False, sender_filter=None)
+        await execute_run(state, dry_run=False, rule_filter=None)
 
     scheduler.reschedule(reloaded, scheduled_run)
     logger.info("Config saved and reloaded: %s", state.config_path)
@@ -189,15 +189,15 @@ def _write_yaml(config: AppConfig, path: Path) -> None:
             "enabled": config.schedule.enabled,
             "interval_hours": config.schedule.interval_hours,
         },
-        "senders": [
+        "rules": [
             {
-                "email": s.email if len(s.email) > 1 else s.email[0],
-                "name": s.name,
-                "interests": s.interests,
-                "tolerance": s.tolerance,
-                "action": s.action,
+                "email": r.email if len(r.email) > 1 else r.email[0],
+                "name": r.name,
+                "interests": r.interests,
+                "tolerance": r.tolerance,
+                "action": r.action,
             }
-            for s in config.senders
+            for r in config.rules
         ],
     }
 

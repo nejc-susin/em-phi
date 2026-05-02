@@ -2,15 +2,15 @@
 
 Self-hosted, AI-powered email filtering for Gmail newsletters.
 
-em-phi connects to your Gmail account, reads incoming emails from senders you configure, passes each one to Claude with a per-sender interest profile, and routes it based on the verdict — label, archive, or leave in inbox. Everything is driven by a single YAML config file. No web UI, no third-party service handling your inbox.
+em-phi connects to your Gmail account, reads incoming emails from senders you configure, passes each one to Claude with a per-rule interest profile, and routes it based on the verdict — label, archive, or leave in inbox. Everything is driven by a single YAML config file. No third-party service handling your inbox.
 
 ---
 
 ## Features
 
-- **Per-sender interest profiles** — each newsletter gets its own natural-language description of what you want to read
-- **Three-level tolerance** — `aggressive`, `balanced`, or `conservative` per sender
-- **Safe by default** — labels only until you trust it; switch to archiving per-sender
+- **Per-rule interest profiles** — each newsletter rule gets its own natural-language description of what you want to read
+- **Three-level tolerance** — `aggressive`, `balanced`, or `conservative` per rule
+- **Safe by default** — labels only until you trust it; switch to archiving per-rule
 - **Full decision log** — every verdict written to SQLite for review and tuning
 - **Dry-run mode** — preview what would happen without touching Gmail
 - **Docker-friendly** — single volume mount, no browser required after initial setup
@@ -40,7 +40,7 @@ Follow [docs/gmail-setup.md](docs/gmail-setup.md) to create a Google Cloud proje
 cp config.example.yaml config.yaml
 ```
 
-Edit `config.yaml` with your senders and interest profiles. See [Config reference](#config-reference) below.
+Edit `config.yaml` with your rules and interest profiles. See [Config reference](#config-reference) below.
 
 ### 4. Generate token.json
 
@@ -70,16 +70,16 @@ em-phi log
 
 | Command | Description |
 |---|---|
-| `em-phi run` | Process new emails from all configured senders |
+| `em-phi run` | Process new emails from all configured rules |
 | `em-phi run --dry-run` | Classify and print verdicts without touching Gmail |
-| `em-phi run --sender EMAIL` | Process only one sender |
+| `em-phi run --rule EMAIL` | Process only one rule |
 | `em-phi check-config` | Validate config file and display parsed settings |
 | `em-phi log` | Show recent decisions (last 20) |
-| `em-phi log --sender EMAIL` | Filter log by sender |
+| `em-phi log --rule EMAIL` | Filter log by rule email address |
 | `em-phi log --days N` | Show decisions from the last N days |
 | `em-phi log --limit N` | Show N entries (default: 20) |
 | `em-phi debug` | Fetch the first unread email and print the exact prompt that would be sent to Claude |
-| `em-phi debug --sender EMAIL` | Debug a specific sender |
+| `em-phi debug --rule EMAIL` | Debug a specific rule |
 | `em-phi debug --limit N` | Inspect the first N unread emails |
 
 Global option: `--config PATH` (default: `config.yaml`, overridden by `EM_PHI_CONFIG` env var).
@@ -138,8 +138,8 @@ labels:
 decision_log:
   path: decisions.db                   # SQLite database path
 
-senders:
-  - email: newsletter@example.com      # exact From: address to match
+rules:
+  - email: newsletter@example.com      # exact From: address, comma-separated list, or domain
     name: "Example Newsletter"         # human-readable name (used in prompt)
     interests: |
       What you want to read from this sender.
@@ -167,11 +167,11 @@ senders:
 
 **What em-phi accesses**
 
-em-phi only reads emails from senders you explicitly configure. It does not scan your full inbox or access any other Gmail data. The Gmail OAuth scope requested is `gmail.modify` — the minimum needed to read emails and apply labels.
+em-phi only reads emails from senders you explicitly configure in rules. It does not scan your full inbox or access any other Gmail data. The Gmail OAuth scope requested is `gmail.modify` — the minimum needed to read emails and apply labels.
 
 **What is sent to the Anthropic API**
 
-For each matched email, the subject line and body text are sent to Claude for classification. The sender's address is not included. Your interest profile for that sender (from your config) is also sent as part of the prompt.
+For each matched email, the subject line and body text are sent to Claude for classification. The sender's address is not included. Your interest profile for that rule (from your config) is also sent as part of the prompt.
 
 Body text is preprocessed before sending: links are replaced with a `<link>` placeholder and the text is truncated to 4000 characters.
 

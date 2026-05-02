@@ -108,16 +108,16 @@ class DecisionLog:
     def query(
         self,
         *,
-        sender: str | None = None,
+        rule_email: str | None = None,
         days: int | None = None,
         limit: int = 20,
     ) -> list[LogEntry]:
         conditions: list[str] = []
         params: list[object] = []
 
-        if sender:
+        if rule_email:
             conditions.append("sender = ?")
-            params.append(sender)
+            params.append(rule_email)
         if days is not None:
             since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
             conditions.append("processed_at >= ?")

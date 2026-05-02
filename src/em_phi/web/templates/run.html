@@ -18,10 +18,10 @@
 <div class="bg-white shadow rounded-lg p-6 mb-6">
   <div class="flex flex-wrap gap-4 items-center">
     <div>
-      <select id="sender-select" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-        <option value="">All senders</option>
-        {% for s in senders %}
-        <option value="{{ s.email[0] }}">{{ s.name }} ({{ s.email[0] }})</option>
+      <select id="rule-select" class="border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <option value="">All rules</option>
+        {% for r in rules %}
+        <option value="{{ r.email[0] }}">{{ r.name }} ({{ r.email[0] }})</option>
         {% endfor %}
       </select>
     </div>
@@ -51,7 +51,7 @@ function startRun() {
   const btn = document.getElementById('run-btn');
   const results = document.getElementById('results');
   const summary = document.getElementById('summary');
-  const sender = document.getElementById('sender-select').value;
+  const rule = document.getElementById('rule-select').value;
   const dryRun = document.getElementById('dry-run-toggle').checked;
 
   if (eventSource) eventSource.close();
@@ -61,7 +61,7 @@ function startRun() {
   btn.textContent = 'Running…';
 
   let url = `/run/stream?dry_run=${dryRun}`;
-  if (sender) url += `&sender=${encodeURIComponent(sender)}`;
+  if (rule) url += `&rule=${encodeURIComponent(rule)}`;
 
   eventSource = new EventSource(url);
 

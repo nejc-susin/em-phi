@@ -2,7 +2,7 @@
 
 ## Project overview
 
-**em-phi** is a self-hosted, AI-powered Gmail newsletter filter. It fetches unread emails from configured senders, classifies each one with Claude Haiku using a per-sender interest profile, and labels or archives based on the verdict. Every decision is logged to SQLite.
+**em-phi** is a self-hosted, AI-powered Gmail newsletter filter. It fetches unread emails from configured rules, classifies each one with Claude Haiku using a per-rule interest profile, and labels or archives based on the verdict. Every decision is logged to SQLite.
 
 Python package: `em_phi` — CLI command: `em-phi` — entry point: `src/em_phi/cli.py`.
 
@@ -53,11 +53,11 @@ src/em_phi/
 
 **SQLite does double duty.** `decision_log.py` is both the human-readable audit log and the deduplication mechanism. `is_processed(message_id)` is an O(1) lookup used at the top of the processing loop to skip already-seen emails across runs.
 
-**Prompt caching per sender.** In `classifiers/claude.py`, the system prompt contains the sender's interest profile and tolerance (which is constant per sender). It uses `cache_control: ephemeral`. When a run processes multiple emails from the same sender, only the first call is a cache miss.
+**Prompt caching per rule.** In `classifiers/claude.py`, the system prompt contains the rule's interest profile and tolerance (which is constant per rule). It uses `cache_control: ephemeral`. When a run processes multiple emails from the same rule, only the first call is a cache miss.
 
 **Path resolution.** All path fields in the config (credentials, token, db) go through `os.path.expandvars` + `os.path.expanduser`, then are resolved relative to the config file's directory if not absolute. This is handled in `config.py:AppConfig.resolve_relative_paths()`.
 
-**Errors are non-fatal per email.** `processor._process_sender` catches exceptions from `get_message`, `classify`, and `apply_verdict` individually, calls `on_error`, and continues to the next message. Only `fetch_unread` failure aborts the whole sender.
+**Errors are non-fatal per email.** `processor._process_rule` catches exceptions from `get_message`, `classify`, and `apply_verdict` individually, calls `on_error`, and continues to the next message. Only `fetch_unread` failure aborts the whole rule.
 
 **`ANTHROPIC_API_KEY` is never in config.** The key is read from the environment in `ClaudeClassifier.__init__`. The `llm:` block only holds model name and max_tokens.
 
@@ -75,7 +75,7 @@ src/em_phi/
 ## Adding a new LLM classifier
 
 1. Create `src/em_phi/classifiers/myclassifier.py`
-2. Implement `classify(email: Email, sender: SenderConfig) -> Verdict` from `classifiers/base.py:Classifier`
+2. Implement `classify(email: Email, rule: RuleConfig) -> Verdict` from `classifiers/base.py:Classifier`
 3. Define a top-level `create(config: AppConfig) -> Classifier` function
 4. In `config.yaml`, set `llm.name: myclassifier` and put any LLM-specific fields under `llm:`
 

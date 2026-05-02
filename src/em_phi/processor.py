@@ -11,15 +11,15 @@ _BODY_LIMIT = 4000
 
 from em_phi.actions import apply_verdict
 from em_phi.classifiers.base import Classifier
-from em_phi.config import AppConfig, SenderConfig
+from em_phi.config import AppConfig, RuleConfig
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
 from em_phi.providers.base import EmailProvider
 
 
 @dataclass
-class SenderResult:
-    sender_email: str
+class RuleResult:
+    rule_email: str
     processed: int = 0
     relevant: int = 0
     irrelevant: int = 0
@@ -29,7 +29,7 @@ class SenderResult:
 
 @dataclass
 class RunSummary:
-    results: list[SenderResult] = field(default_factory=list)
+    results: list[RuleResult] = field(default_factory=list)
 
     @property
     def processed(self) -> int:
@@ -64,31 +64,20 @@ def process_all(
     classifier: Classifier,
     log: DecisionLog,
     dry_run: bool,
-    sender_filter: str | None = None,
+    rule_filter: str | None = None,
     on_email: OnEmail | None = None,
     on_error: OnError | None = None,
 ) -> RunSummary:
-    """Run the full processing loop over all configured senders.
-
-    Args:
-        config: Loaded application config.
-        provider: Authenticated email provider.
-        classifier: Classifier to determine relevance.
-        log: Decision log for tracking and deduplication.
-        dry_run: If True, classify but do not modify Gmail or write to the log.
-        sender_filter: If set, process only the sender with this email address.
-        on_email: Optional callback fired after each email is classified.
-        on_error: Optional callback fired when a non-fatal error occurs.
-    """
+    """Run the full processing loop over all configured rules."""
     summary = RunSummary()
 
-    senders = config.senders
-    if sender_filter:
-        senders = [s for s in senders if s.email == sender_filter]
+    rules = config.rules
+    if rule_filter:
+        rules = [r for r in rules if rule_filter in r.email]
 
-    for sender in senders:
-        result = _process_sender(
-            sender=sender,
+    for rule in rules:
+        result = _process_rule(
+            rule=rule,
             config=config,
             provider=provider,
             classifier=classifier,
@@ -102,9 +91,9 @@ def process_all(
     return summary
 
 
-def _process_sender(
+def _process_rule(
     *,
-    sender: SenderConfig,
+    rule: RuleConfig,
     config: AppConfig,
     provider: EmailProvider,
     classifier: Classifier,
@@ -112,16 +101,16 @@ def _process_sender(
     dry_run: bool,
     on_email: OnEmail | None,
     on_error: OnError | None,
-) -> SenderResult:
-    result = SenderResult(sender_email=sender.email[0])
+) -> RuleResult:
+    result = RuleResult(rule_email=rule.email[0])
 
-    logger.debug("Processor: starting %s", sender.email[0])
+    logger.debug("Processor: starting %s", rule.email[0])
     try:
-        message_ids = provider.fetch_unread(sender.email)
+        message_ids = provider.fetch_unread(rule.email)
     except Exception as exc:
-        logger.error("Processor: fetch_unread failed for %s: %s", sender.email, exc)
+        logger.error("Processor: fetch_unread failed for %s: %s", rule.email, exc)
         if on_error:
-            on_error(f"fetch_unread({sender.email})", exc)
+            on_error(f"fetch_unread({rule.email})", exc)
         result.errors += 1
         return result
 
@@ -134,11 +123,11 @@ def _process_sender(
         try:
             email = provider.get_message(msg_id)
             email = replace(email, body=_prepare_body(email.body))
-            verdict = classifier.classify(email, sender)
+            verdict = classifier.classify(email, rule)
             action = apply_verdict(
                 email=email,
                 verdict=verdict,
-                sender=sender,
+                rule=rule,
                 labels=config.labels,
                 provider=provider,
                 dry_run=dry_run,
@@ -153,7 +142,7 @@ def _process_sender(
         if not dry_run:
             log.record(
                 message_id=msg_id,
-                sender=sender.email[0],
+                sender=rule.email[0],
                 subject=email.subject,
                 received_at=email.received_at,
                 verdict=verdict,
@@ -171,7 +160,7 @@ def _process_sender(
 
     logger.info(
         "Processor: %s done — processed=%d skipped=%d errors=%d",
-        sender.email[0], result.processed, result.skipped, result.errors,
+        rule.email[0], result.processed, result.skipped, result.errors,
     )
     return result
 

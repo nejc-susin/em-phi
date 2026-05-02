@@ -13,11 +13,11 @@
 <!-- Filters -->
 <form method="get" action="/log" class="bg-white shadow rounded-lg p-4 mb-6 flex flex-wrap gap-3 items-end">
   <div>
-    <label class="block text-xs font-medium text-gray-600 mb-1">Sender</label>
-    <select name="sender" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Rule</label>
+    <select name="rule" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="">All</option>
-      {% for s in known_senders %}
-      <option value="{{ s }}" {% if filter_sender == s %}selected{% endif %}>{{ s }}</option>
+      {% for s in known_rules %}
+      <option value="{{ s }}" {% if filter_rule == s %}selected{% endif %}>{{ s }}</option>
       {% endfor %}
     </select>
   </div>

@@ -40,8 +40,9 @@ decision_log:
 #   port: 8080
 #   auth_token: change-me   # CHANGE THIS — protects the config editor and run controls
 
-senders:
-  # One entry per newsletter sender.
+rules:
+  # One entry per filtering rule. A rule covers one address, multiple addresses,
+  # or a whole domain, all sharing the same interest profile.
   # 'interests' is a natural-language description of what you want to see from this sender.
   # 'tolerance' controls how aggressively irrelevant emails are filtered:
   #   aggressive  — archive anything not clearly relevant; when in doubt, archive

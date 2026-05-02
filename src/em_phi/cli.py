@@ -45,10 +45,10 @@ def check_config(ctx: click.Context) -> None:
     click.echo(f"Decision log:  {config.decision_log.path}")
     click.echo()
 
-    click.echo(f"Senders ({len(config.senders)}):")
-    for s in config.senders:
-        emails = ", ".join(s.email)
-        click.echo(f"  {emails:<35} \"{s.name}\"  [{s.tolerance}, {s.action}]")
+    click.echo(f"Rules ({len(config.rules)}):")
+    for r in config.rules:
+        emails = ", ".join(r.email)
+        click.echo(f"  {emails:<35} \"{r.name}\"  [{r.tolerance}, {r.action}]")
 
     click.echo()
     click.echo("Paths:")
@@ -61,11 +61,11 @@ def check_config(ctx: click.Context) -> None:
 
 
 @cli.command("log")
-@click.option("--sender", default=None, help="Filter by sender email address.")
+@click.option("--rule", default=None, help="Filter by rule email address.")
 @click.option("--days", default=None, type=int, help="Limit to decisions from the last N days.")
 @click.option("--limit", default=20, show_default=True, help="Maximum number of entries to show.")
 @click.pass_context
-def log_cmd(ctx: click.Context, sender: str | None, days: int | None, limit: int) -> None:
+def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int) -> None:
     """Show recent decisions from the decision log."""
     config_path: Path = ctx.obj["config_path"]
 
@@ -79,7 +79,7 @@ def log_cmd(ctx: click.Context, sender: str | None, days: int | None, limit: int
         raise click.ClickException(f"Decision log not found: {db_path}\nRun `em-phi run` first.")
 
     log = DecisionLog(db_path)
-    entries = log.query(sender=sender, days=days, limit=limit)
+    entries = log.query(rule_email=rule, days=days, limit=limit)
 
     if not entries:
         click.echo("No entries found.")
@@ -106,16 +106,16 @@ def log_cmd(ctx: click.Context, sender: str | None, days: int | None, limit: int
 
 @cli.command("run")
 @click.option("--dry-run", is_flag=True, help="Classify emails but do not label, archive, or log.")
-@click.option("--sender", default=None, help="Process only this sender email address.")
+@click.option("--rule", default=None, help="Process only this rule email address.")
 @click.pass_context
-def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
-    """Process new emails from configured senders.
+def run_cmd(ctx: click.Context, dry_run: bool, rule: str | None) -> None:
+    """Process new emails from configured rules.
 
     Fetches unread messages, classifies each one with Claude, applies
     labels/archiving based on the verdict, and logs every decision.
     Use --dry-run to preview what would happen without touching Gmail.
     """
-    from em_phi.processor import process_all
+    from em_phi.processor import _process_rule
 
     config_path: Path = ctx.obj["config_path"]
 
@@ -130,12 +130,12 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
         click.echo("[DRY RUN] No changes will be made to Gmail or the decision log.")
         click.echo()
 
-    # Validate sender filter
-    if sender:
-        known = {e for s in config.senders for e in s.email}
-        if sender not in known:
+    # Validate rule filter
+    if rule:
+        known = {e for r in config.rules for e in r.email}
+        if rule not in known:
             raise click.ClickException(
-                f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
+                f"Rule '{rule}' not found in config.\nKnown rules: {', '.join(sorted(known))}"
             )
 
     provider = _build_provider(config)
@@ -151,9 +151,6 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
 
     log = DecisionLog(config.decision_log.path)
 
-    # Track current sender for section headers
-    _current_sender: list[str] = []
-
     def on_email(email: Email, verdict: Verdict, action: str, is_dry: bool) -> None:
         verdict_tag = f"{verdict.verdict:<11} / {verdict.confidence:<6}"
         dry_tag = "[DRY RUN] " if is_dry else ""
@@ -162,18 +159,17 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
     def on_error(context: str, exc: Exception) -> None:
         click.echo(f"  WARNING: error {context}: {exc}", err=True)
 
-    senders_to_run = (
-        [s for s in config.senders if sender in s.email] if sender else config.senders
+    rules_to_run = (
+        [r for r in config.rules if rule in r.email] if rule else config.rules
     )
 
     total_processed = total_relevant = total_irrelevant = total_skipped = total_errors = 0
 
-    for s in senders_to_run:
-        click.echo(f"Processing {s.email} (\"{s.name}\")...")
+    for r in rules_to_run:
+        click.echo(f"Processing {r.email} (\"{r.name}\")...")
 
-        from em_phi.processor import _process_sender
-        result = _process_sender(
-            sender=s,
+        result = _process_rule(
+            rule=r,
             config=config,
             provider=provider,
             classifier=classifier,
@@ -212,10 +208,10 @@ def run_cmd(ctx: click.Context, dry_run: bool, sender: str | None) -> None:
 
 
 @cli.command("debug")
-@click.option("--sender", default=None, help="Inspect emails from this sender only.")
+@click.option("--rule", default=None, help="Inspect emails from this rule only.")
 @click.option("--limit", default=1, show_default=True, help="Number of emails to inspect.")
 @click.pass_context
-def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
+def debug_cmd(ctx: click.Context, rule: str | None, limit: int) -> None:
     """Fetch emails and print the classifier prompt without calling the LLM.
 
     Useful for checking what Claude would see before a real run.
@@ -235,11 +231,11 @@ def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
             f"debug only supports the built-in 'claude' classifier, got '{config.llm.name}'"
         )
 
-    if sender:
-        known = {e for s in config.senders for e in s.email}
-        if sender not in known:
+    if rule:
+        known = {e for r in config.rules for e in r.email}
+        if rule not in known:
             raise click.ClickException(
-                f"Sender '{sender}' not found in config.\nKnown senders: {', '.join(sorted(known))}"
+                f"Rule '{rule}' not found in config.\nKnown rules: {', '.join(sorted(known))}"
             )
 
     provider = _build_provider(config)
@@ -249,12 +245,12 @@ def debug_cmd(ctx: click.Context, sender: str | None, limit: int) -> None:
         raise click.ClickException(str(e))
 
     try:
-        infos = fetch_debug_info(config, provider, sender_filter=sender, limit=limit)
+        infos = fetch_debug_info(config, provider, rule_filter=rule, limit=limit)
     except RuntimeError as e:
         raise click.ClickException(str(e))
 
     if not infos:
-        click.echo("No unread emails found for the specified sender(s).")
+        click.echo("No unread emails found for the specified rule(s).")
         return
 
     width = 72
@@ -289,7 +285,7 @@ def serve_cmd(ctx: click.Context) -> None:
     if not config.web:
         raise click.ClickException(
             "No 'web:' block found in config. Add one to use 'em-phi serve'.\n\n"
-            "Example:\n  web:\n    host: 127.0.0.1\n    port: 8080\n    auth_token: your-secret-token"
+            "Example:\n  web:\n    host: 0.0.0.0\n    port: 8080\n    auth_token: your-secret-token"
         )
 
     import uvicorn
@@ -300,11 +296,6 @@ def serve_cmd(ctx: click.Context) -> None:
 
 
 def _build_provider(config: AppConfig) -> EmailProvider:
-    """Instantiate the email provider named in config.email_provider.name.
-
-    Built-in: "gmail"
-    Custom:   add src/em_phi/providers/myprovider.py with create(config) -> EmailProvider
-    """
     name = config.email_provider.name
     if name == "gmail":
         from em_phi.providers.gmail import GmailProvider
@@ -328,11 +319,6 @@ def _build_provider(config: AppConfig) -> EmailProvider:
 
 
 def _build_classifier(config: AppConfig) -> Classifier:
-    """Instantiate the classifier named in config.llm.name.
-
-    Built-in: "claude"
-    Custom:   add src/em_phi/classifiers/myclassifier.py with create(config) -> Classifier
-    """
     name = config.llm.name
     if name == "claude":
         from em_phi.classifiers.claude import ClaudeClassifier

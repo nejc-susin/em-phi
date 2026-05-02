@@ -9,14 +9,14 @@
     </span>
   </label>
   <input name="email" type="text" required placeholder="newsletter@example.com"
-    value="{{ sender.email | join(', ') if sender is defined else '' }}"
+    value="{{ rule.email | join(', ') if rule is defined else '' }}"
     class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
 </div>
 
 <div>
   <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
   <input name="name" type="text" required placeholder="Example Newsletter"
-    value="{{ sender.name if sender is defined else '' }}"
+    value="{{ rule.name if rule is defined else '' }}"
     class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
 </div>
 
@@ -24,7 +24,7 @@
   <label class="block text-xs font-medium text-gray-600 mb-1">Interest profile</label>
   <textarea name="interests" rows="4" required
     placeholder="What you want to read from this sender. What you don't want. Be specific."
-    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y">{{ sender.interests if sender is defined else '' }}</textarea>
+    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y">{{ rule.interests if rule is defined else '' }}</textarea>
 </div>
 
 <div>
@@ -37,8 +37,8 @@
     ] %}
     {% for value, label in tols %}
     <option value="{{ value }}"
-      {% if sender is defined and sender.tolerance == value %}selected
-      {% elif sender is not defined and value == "balanced" %}selected
+      {% if rule is defined and rule.tolerance == value %}selected
+      {% elif rule is not defined and value == "balanced" %}selected
       {% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
@@ -47,7 +47,7 @@
 <div>
   <label class="block text-xs font-medium text-gray-600 mb-1">Action for irrelevant emails</label>
   <select name="action" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-    <option value="label"   {% if sender is not defined or sender.action == "label"   %}selected{% endif %}>label — keep in inbox with irrelevant label</option>
-    <option value="archive" {% if sender is defined     and sender.action == "archive" %}selected{% endif %}>archive — label and remove from inbox</option>
+    <option value="label"   {% if rule is not defined or rule.action == "label"   %}selected{% endif %}>label — keep in inbox with irrelevant label</option>
+    <option value="archive" {% if rule is defined     and rule.action == "archive" %}selected{% endif %}>archive — label and remove from inbox</option>
   </select>
 </div>

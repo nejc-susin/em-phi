@@ -14,22 +14,22 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     @r.get("/log", response_class=HTMLResponse)
     async def log_page(
         request: Request,
-        sender: str | None = None,
+        rule: str | None = None,
         days: int | None = None,
         limit: int = 50,
     ):
         log = DecisionLog(state.config.decision_log.path)
-        entries = log.query(sender=sender, days=days, limit=limit)
+        entries = log.query(rule_email=rule, days=days, limit=limit)
         counts = log.count()
-        known_senders = sorted({e for s in state.config.senders for e in s.email})
+        known_rules = sorted({e for r in state.config.rules for e in r.email})
 
         return templates.TemplateResponse(request, "log.html", {
             "entries": entries,
             "counts": counts,
-            "filter_sender": sender,
+            "filter_rule": rule,
             "filter_days": days,
             "filter_limit": limit,
-            "known_senders": known_senders,
+            "known_rules": known_rules,
         })
 
     return r

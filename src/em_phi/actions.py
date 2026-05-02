@@ -1,6 +1,6 @@
 import logging
 
-from em_phi.config import LabelsConfig, SenderConfig
+from em_phi.config import LabelsConfig, RuleConfig
 from em_phi.models import Email, Verdict
 from em_phi.providers.base import EmailProvider
 
@@ -11,7 +11,7 @@ def apply_verdict(
     *,
     email: Email,
     verdict: Verdict,
-    sender: SenderConfig,
+    rule: RuleConfig,
     labels: LabelsConfig,
     provider: EmailProvider,
     dry_run: bool,
@@ -19,7 +19,7 @@ def apply_verdict(
     """Apply the verdict to the email and return the action taken.
 
     Relevant emails are always labelled and kept in inbox.
-    Irrelevant emails are labelled, and archived if sender.action == 'archive'.
+    Irrelevant emails are labelled, and archived if rule.action == 'archive'.
     In dry_run mode no Gmail API calls are made.
     """
     if verdict.verdict == "relevant":
@@ -27,7 +27,7 @@ def apply_verdict(
         action = "label"
     else:
         label = labels.irrelevant
-        action = sender.action  # "label" or "archive"
+        action = rule.action  # "label" or "archive"
 
     if dry_run:
         logger.debug("Actions: [DRY RUN] would label=%r action=%s on %s", label, action, email.message_id)

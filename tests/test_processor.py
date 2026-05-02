@@ -8,7 +8,7 @@ from em_phi.actions import apply_verdict
 from em_phi.config import LabelsConfig
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
-from em_phi.processor import _process_sender
+from em_phi.processor import _process_rule
 
 
 # ------------------------------------------------------------------
@@ -20,13 +20,13 @@ def _make_provider() -> MagicMock:
 
 
 def test_relevant_email_gets_relevant_label(
-    relevant_email, relevant_verdict, sample_sender, sample_config
+    relevant_email, relevant_verdict, sample_rule, sample_config
 ) -> None:
     provider = _make_provider()
     action = apply_verdict(
         email=relevant_email,
         verdict=relevant_verdict,
-        sender=sample_sender,
+        rule=sample_rule,
         labels=sample_config.labels,
         provider=provider,
         dry_run=False,
@@ -37,13 +37,13 @@ def test_relevant_email_gets_relevant_label(
 
 
 def test_irrelevant_label_only(
-    irrelevant_email, irrelevant_verdict, sample_sender, sample_config
+    irrelevant_email, irrelevant_verdict, sample_rule, sample_config
 ) -> None:
     provider = _make_provider()
     action = apply_verdict(
         email=irrelevant_email,
         verdict=irrelevant_verdict,
-        sender=sample_sender,  # action="label"
+        rule=sample_rule,  # action="label"
         labels=sample_config.labels,
         provider=provider,
         dry_run=False,
@@ -54,13 +54,13 @@ def test_irrelevant_label_only(
 
 
 def test_irrelevant_with_archive_action(
-    irrelevant_email, irrelevant_verdict, sample_sender_archive, sample_config
+    irrelevant_email, irrelevant_verdict, sample_rule_archive, sample_config
 ) -> None:
     provider = _make_provider()
     action = apply_verdict(
         email=irrelevant_email,
         verdict=irrelevant_verdict,
-        sender=sample_sender_archive,  # action="archive"
+        rule=sample_rule_archive,  # action="archive"
         labels=sample_config.labels,
         provider=provider,
         dry_run=False,
@@ -71,13 +71,13 @@ def test_irrelevant_with_archive_action(
 
 
 def test_dry_run_makes_no_provider_calls(
-    relevant_email, relevant_verdict, sample_sender, sample_config
+    relevant_email, relevant_verdict, sample_rule, sample_config
 ) -> None:
     provider = _make_provider()
     apply_verdict(
         email=relevant_email,
         verdict=relevant_verdict,
-        sender=sample_sender,
+        rule=sample_rule,
         labels=sample_config.labels,
         provider=provider,
         dry_run=True,
@@ -132,8 +132,8 @@ def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_v
     assert len(log.query(limit=100)) == 1
 
 
-def test_decision_log_query_filter_by_sender(tmp_db: Path, relevant_email, irrelevant_email,
-                                              relevant_verdict, irrelevant_verdict) -> None:
+def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelevant_email,
+                                           relevant_verdict, irrelevant_verdict) -> None:
     log = DecisionLog(tmp_db)
     log.record(
         message_id=relevant_email.message_id,
@@ -151,22 +151,22 @@ def test_decision_log_query_filter_by_sender(tmp_db: Path, relevant_email, irrel
         verdict=irrelevant_verdict,
         action_taken="label",
     )
-    results = log.query(sender="a@example.com")
+    results = log.query(rule_email="a@example.com")
     assert len(results) == 1
     assert results[0].sender == "a@example.com"
 
 
 # ------------------------------------------------------------------
-# processor._process_sender
+# processor._process_rule
 # ------------------------------------------------------------------
 
-def _make_sender_processor(
+def _make_rule_processor(
     *,
     message_ids: list[str],
     emails: dict,
     verdicts: dict,
     config,
-    sender,
+    rule,
     tmp_db: Path,
     dry_run: bool = False,
 ) -> tuple:
@@ -175,13 +175,13 @@ def _make_sender_processor(
     provider.get_message.side_effect = lambda mid: emails[mid]
 
     classifier = MagicMock()
-    classifier.classify.side_effect = lambda email, s: verdicts[email.message_id]
+    classifier.classify.side_effect = lambda email, r: verdicts[email.message_id]
 
     log = DecisionLog(tmp_db)
     seen: list[tuple] = []
 
-    result = _process_sender(
-        sender=sender,
+    result = _process_rule(
+        rule=rule,
         config=config,
         provider=provider,
         classifier=classifier,
@@ -193,16 +193,16 @@ def _make_sender_processor(
     return result, log, provider, seen
 
 
-def test_process_sender_basic(
-    tmp_db, sample_config, sample_sender, relevant_email, irrelevant_email,
+def test_process_rule_basic(
+    tmp_db, sample_config, sample_rule, relevant_email, irrelevant_email,
     relevant_verdict, irrelevant_verdict,
 ) -> None:
-    result, log, provider, seen = _make_sender_processor(
+    result, log, provider, seen = _make_rule_processor(
         message_ids=["msg001", "msg002"],
         emails={"msg001": relevant_email, "msg002": irrelevant_email},
         verdicts={"msg001": relevant_verdict, "msg002": irrelevant_verdict},
         config=sample_config,
-        sender=sample_sender,
+        rule=sample_rule,
         tmp_db=tmp_db,
     )
     assert result.processed == 2
@@ -214,13 +214,13 @@ def test_process_sender_basic(
     assert log.is_processed("msg002")
 
 
-def test_process_sender_skips_already_processed(
-    tmp_db, sample_config, sample_sender, relevant_email, relevant_verdict,
+def test_process_rule_skips_already_processed(
+    tmp_db, sample_config, sample_rule, relevant_email, relevant_verdict,
 ) -> None:
     log = DecisionLog(tmp_db)
     log.record(
         message_id="msg001",
-        sender=sample_sender.email[0],
+        sender=sample_rule.email[0],
         subject=relevant_email.subject,
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
@@ -231,8 +231,8 @@ def test_process_sender_skips_already_processed(
     provider.fetch_unread.return_value = ["msg001"]
     classifier = MagicMock()
 
-    result = _process_sender(
-        sender=sample_sender,
+    result = _process_rule(
+        rule=sample_rule,
         config=sample_config,
         provider=provider,
         classifier=classifier,
@@ -246,16 +246,16 @@ def test_process_sender_skips_already_processed(
     classifier.classify.assert_not_called()
 
 
-def test_process_sender_fetch_error_is_non_fatal(
-    tmp_db, sample_config, sample_sender,
+def test_process_rule_fetch_error_is_non_fatal(
+    tmp_db, sample_config, sample_rule,
 ) -> None:
     provider = MagicMock()
     provider.fetch_unread.side_effect = RuntimeError("Network error")
     classifier = MagicMock()
     errors: list[str] = []
 
-    result = _process_sender(
-        sender=sample_sender,
+    result = _process_rule(
+        rule=sample_rule,
         config=sample_config,
         provider=provider,
         classifier=classifier,
@@ -269,8 +269,8 @@ def test_process_sender_fetch_error_is_non_fatal(
     assert "Network error" in errors[0]
 
 
-def test_process_sender_classify_error_is_non_fatal(
-    tmp_db, sample_config, sample_sender, relevant_email,
+def test_process_rule_classify_error_is_non_fatal(
+    tmp_db, sample_config, sample_rule, relevant_email,
 ) -> None:
     provider = MagicMock()
     provider.fetch_unread.return_value = ["msg001"]
@@ -280,8 +280,8 @@ def test_process_sender_classify_error_is_non_fatal(
     classifier.classify.side_effect = RuntimeError("Claude API error")
 
     errors: list[str] = []
-    result = _process_sender(
-        sender=sample_sender,
+    result = _process_rule(
+        rule=sample_rule,
         config=sample_config,
         provider=provider,
         classifier=classifier,
@@ -295,8 +295,8 @@ def test_process_sender_classify_error_is_non_fatal(
     assert "Claude API error" in errors[0]
 
 
-def test_process_sender_dry_run_does_not_log(
-    tmp_db, sample_config, sample_sender, relevant_email, relevant_verdict,
+def test_process_rule_dry_run_does_not_log(
+    tmp_db, sample_config, sample_rule, relevant_email, relevant_verdict,
 ) -> None:
     provider = MagicMock()
     provider.fetch_unread.return_value = ["msg001"]
@@ -306,8 +306,8 @@ def test_process_sender_dry_run_does_not_log(
     classifier.classify.return_value = relevant_verdict
 
     log = DecisionLog(tmp_db)
-    _process_sender(
-        sender=sample_sender,
+    _process_rule(
+        rule=sample_rule,
         config=sample_config,
         provider=provider,
         classifier=classifier,

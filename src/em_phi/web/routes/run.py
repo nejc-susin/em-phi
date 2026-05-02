@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from em_phi.models import Email, Verdict
-from em_phi.processor import RunSummary, _process_sender
+from em_phi.processor import RunSummary, _process_rule
 from em_phi.web.state import AppState, LastRun
 
 logger = logging.getLogger(__name__)
@@ -22,18 +22,18 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     @r.get("/run", response_class=HTMLResponse)
     async def run_page(request: Request):
         return templates.TemplateResponse(request, "run.html", {
-            "senders": state.config.senders,
+            "rules": state.config.rules,
             "is_running": state.is_running,
             "last_run": state.last_run,
         })
 
     @r.get("/run/stream")
-    async def stream_run(dry_run: bool = False, sender: str | None = None):
+    async def stream_run(dry_run: bool = False, rule: str | None = None):
         if state.is_running:
             raise HTTPException(409, "A run is already in progress")
 
         return StreamingResponse(
-            _run_generator(state, dry_run=dry_run, sender_filter=sender),
+            _run_generator(state, dry_run=dry_run, rule_filter=rule),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -44,7 +44,7 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
 async def execute_run(
     state: AppState,
     dry_run: bool,
-    sender_filter: str | None,
+    rule_filter: str | None,
 ) -> RunSummary:
     """Run process_all in a thread pool, streaming progress via callbacks.
 
@@ -55,13 +55,13 @@ async def execute_run(
         try:
             return await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: _blocking_run(state, dry_run, sender_filter, queue=None),
+                lambda: _blocking_run(state, dry_run, rule_filter, queue=None),
             )
         finally:
             state.is_running = False
 
 
-async def _run_generator(state: AppState, dry_run: bool, sender_filter: str | None):
+async def _run_generator(state: AppState, dry_run: bool, rule_filter: str | None):
     """Async generator that yields SSE events while processing emails."""
     if state.run_lock.locked():
         yield _sse({"type": "error", "message": "A run is already in progress"})
@@ -96,7 +96,7 @@ async def _run_generator(state: AppState, dry_run: bool, sender_filter: str | No
         try:
             future = loop.run_in_executor(
                 None,
-                lambda: _blocking_run(state, dry_run, sender_filter, queue, on_email, on_error, loop),
+                lambda: _blocking_run(state, dry_run, rule_filter, queue, on_email, on_error, loop),
             )
 
             while not future.done() or not queue.empty():
@@ -128,7 +128,7 @@ async def _run_generator(state: AppState, dry_run: bool, sender_filter: str | No
 def _blocking_run(
     state: AppState,
     dry_run: bool,
-    sender_filter: str | None,
+    rule_filter: str | None,
     queue,
     on_email=None,
     on_error=None,
@@ -136,7 +136,7 @@ def _blocking_run(
 ) -> RunSummary:
     from em_phi.cli import _build_classifier, _build_provider
     from em_phi.decision_log import DecisionLog
-    from em_phi.processor import RunSummary, _process_sender
+    from em_phi.processor import RunSummary, _process_rule
 
     config = state.config
     provider = _build_provider(config)
@@ -144,14 +144,14 @@ def _blocking_run(
     classifier = _build_classifier(config)
     log = DecisionLog(config.decision_log.path)
 
-    senders = config.senders
-    if sender_filter:
-        senders = [s for s in senders if sender_filter in s.email]
+    rules = config.rules
+    if rule_filter:
+        rules = [r for r in rules if rule_filter in r.email]
 
     summary = RunSummary()
-    for s in senders:
-        result = _process_sender(
-            sender=s,
+    for r in rules:
+        result = _process_rule(
+            rule=r,
             config=config,
             provider=provider,
             classifier=classifier,

@@ -12,29 +12,29 @@
 <div class="bg-red-50 border border-red-200 rounded-lg px-5 py-3 text-sm text-red-700 mb-6">{{ error }}</div>
 {% endif %}
 
-<!-- ── Senders ── -->
+<!-- ── Rules ── -->
 <div class="bg-white shadow rounded-lg mb-6">
   <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-    <h2 class="text-base font-medium text-gray-900">Senders</h2>
-    <button onclick="document.getElementById('add-sender-form').classList.toggle('hidden')"
-      class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Add sender</button>
+    <h2 class="text-base font-medium text-gray-900">Rules</h2>
+    <button onclick="document.getElementById('add-rule-form').classList.toggle('hidden')"
+      class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Add rule</button>
   </div>
 
-  <!-- Add sender -->
-  <div id="add-sender-form" class="hidden border-b border-gray-100 bg-gray-50 px-5 py-4">
-    <form method="post" action="/config/sender/add" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {% include "partials/sender_fields.html" with context %}
+  <!-- Add rule -->
+  <div id="add-rule-form" class="hidden border-b border-gray-100 bg-gray-50 px-5 py-4">
+    <form method="post" action="/config/rule/add" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {% include "partials/rule_fields.html" with context %}
       <div class="sm:col-span-2 flex gap-2">
         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded transition-colors">Add</button>
-        <button type="button" onclick="document.getElementById('add-sender-form').classList.add('hidden')"
+        <button type="button" onclick="document.getElementById('add-rule-form').classList.add('hidden')"
           class="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5">Cancel</button>
       </div>
     </form>
   </div>
 
-  {% if config.senders %}
+  {% if config.rules %}
   <ul class="divide-y divide-gray-100">
-    {% for s in config.senders %}
+    {% for s in config.rules %}
     <li class="px-5 py-4">
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
@@ -49,16 +49,16 @@
         <div class="flex gap-3 shrink-0 items-start">
           <button onclick="toggleEdit({{ loop.index0 }})"
             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
-          <form method="post" action="/config/sender/{{ loop.index0 }}/delete"
-            onsubmit="return confirm('Delete sender {{ s.name }}?')" class="contents">
+          <form method="post" action="/config/rule/{{ loop.index0 }}/delete"
+            onsubmit="return confirm('Delete rule {{ s.name }}?')" class="contents">
             <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
           </form>
         </div>
       </div>
       <div id="edit-{{ loop.index0 }}" class="hidden mt-4 bg-gray-50 rounded-lg p-4">
-        <form method="post" action="/config/sender/{{ loop.index0 }}/edit" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {% set sender = s %}
-          {% include "partials/sender_fields.html" with context %}
+        <form method="post" action="/config/rule/{{ loop.index0 }}/edit" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {% set rule = s %}
+          {% include "partials/rule_fields.html" with context %}
           <div class="sm:col-span-2 flex gap-2">
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded transition-colors">Save</button>
             <button type="button" onclick="toggleEdit({{ loop.index0 }})"
@@ -70,7 +70,7 @@
     {% endfor %}
   </ul>
   {% else %}
-  <p class="px-5 py-8 text-sm text-gray-400 text-center">No senders configured. Add one above.</p>
+  <p class="px-5 py-8 text-sm text-gray-400 text-center">No rules configured. Add one above.</p>
   {% endif %}
 </div>
 

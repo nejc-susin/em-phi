@@ -73,7 +73,7 @@ class LoggingConfig(BaseModel):
         return _expand(str(v))
 
 
-class SenderConfig(BaseModel):
+class RuleConfig(BaseModel):
     email: list[str]
     name: str
     interests: str
@@ -84,15 +84,15 @@ class SenderConfig(BaseModel):
     @classmethod
     def normalize_email(cls, v: object) -> list[str]:
         if isinstance(v, str):
-            return [v]
+            return [e.strip() for e in v.split(",") if e.strip()]
         if isinstance(v, list):
             return v
         raise ValueError("email must be a string or list of strings")
 
     @model_validator(mode="after")
-    def check_non_empty(self) -> SenderConfig:
+    def check_non_empty(self) -> RuleConfig:
         if not self.interests.strip():
-            raise ValueError(f"interests for sender '{self.email[0]}' must not be empty")
+            raise ValueError(f"interests for rule '{self.email[0]}' must not be empty")
         return self
 
 
@@ -118,12 +118,12 @@ class AppConfig(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     schedule: ScheduleConfig = ScheduleConfig()
     web: WebConfig | None = None
-    senders: list[SenderConfig]
+    rules: list[RuleConfig]
 
     @model_validator(mode="after")
-    def check_senders(self) -> AppConfig:
-        if not self.senders:
-            raise ValueError("at least one sender must be configured")
+    def check_rules(self) -> AppConfig:
+        if not self.rules:
+            raise ValueError("at least one rule must be configured")
         return self
 
     def resolve_relative_paths(self, config_dir: Path) -> None:

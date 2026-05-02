@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from em_phi.classifiers.claude import ClaudeClassifier, _parse_verdict, _validate
-from em_phi.config import LLMConfig, SenderConfig
+from em_phi.config import LLMConfig, RuleConfig
 from em_phi.models import Verdict
 
 
@@ -67,45 +67,45 @@ def classifier(monkeypatch: pytest.MonkeyPatch) -> ClaudeClassifier:
     return ClaudeClassifier(LLMConfig())
 
 
-def test_classify_returns_verdict(classifier: ClaudeClassifier, relevant_email, sample_sender) -> None:
+def test_classify_returns_verdict(classifier: ClaudeClassifier, relevant_email, sample_rule) -> None:
     response_text = '{"verdict": "relevant", "confidence": "high", "reason": "Python release."}'
 
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text=response_text)]
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response):
-        verdict = classifier.classify(relevant_email, sample_sender)
+        verdict = classifier.classify(relevant_email, sample_rule)
 
     assert verdict.verdict == "relevant"
     assert verdict.confidence == "high"
 
 
 def test_classify_sends_interest_profile_in_system_prompt(
-    classifier: ClaudeClassifier, relevant_email, sample_sender
+    classifier: ClaudeClassifier, relevant_email, sample_rule
 ) -> None:
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text='{"verdict": "relevant", "confidence": "high", "reason": "R."}')]
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
-        classifier.classify(relevant_email, sample_sender)
+        classifier.classify(relevant_email, sample_rule)
 
     call_kwargs = mock_create.call_args.kwargs
     system_blocks = call_kwargs["system"]
     system_text = system_blocks[0]["text"]
 
-    assert sample_sender.interests.strip() in system_text
-    assert sample_sender.tolerance in system_text
+    assert sample_rule.interests.strip() in system_text
+    assert sample_rule.tolerance in system_text
     assert "cache_control" in system_blocks[0]
 
 
 def test_classify_includes_email_content_in_user_message(
-    classifier: ClaudeClassifier, relevant_email, sample_sender
+    classifier: ClaudeClassifier, relevant_email, sample_rule
 ) -> None:
     mock_response = MagicMock()
     mock_response.content = [MagicMock(text='{"verdict": "irrelevant", "confidence": "low", "reason": "R."}')]
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
-        classifier.classify(relevant_email, sample_sender)
+        classifier.classify(relevant_email, sample_rule)
 
     messages = mock_create.call_args.kwargs["messages"]
     user_content = messages[0]["content"]

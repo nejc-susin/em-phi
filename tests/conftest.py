@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, LabelsConfig, LLMConfig, SenderConfig
+from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, LabelsConfig, LLMConfig, RuleConfig
 from em_phi.models import Email, Verdict
 
 
@@ -14,8 +14,8 @@ def tmp_db(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def sample_sender() -> SenderConfig:
-    return SenderConfig(
+def sample_rule() -> RuleConfig:
+    return RuleConfig(
         email="newsletter@example.com",
         name="Example Newsletter",
         interests="I care about Python releases and security updates.",
@@ -25,8 +25,8 @@ def sample_sender() -> SenderConfig:
 
 
 @pytest.fixture
-def sample_sender_archive() -> SenderConfig:
-    return SenderConfig(
+def sample_rule_archive() -> RuleConfig:
+    return RuleConfig(
         email="digest@example.com",
         name="Tech Digest",
         interests="Distributed systems and database internals.",
@@ -36,14 +36,14 @@ def sample_sender_archive() -> SenderConfig:
 
 
 @pytest.fixture
-def sample_config(tmp_db: Path, sample_sender: SenderConfig) -> AppConfig:
+def sample_config(tmp_db: Path, sample_rule: RuleConfig) -> AppConfig:
     return AppConfig(
         email_provider=EmailProviderConfig(
             credentials_file=Path("credentials.json"),
             token_file=Path("token.json"),
         ),
         decision_log=DecisionLogConfig(path=tmp_db),
-        senders=[sample_sender],
+        rules=[sample_rule],
     )
 
 

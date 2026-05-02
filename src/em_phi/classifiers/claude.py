@@ -7,7 +7,7 @@ import re
 
 import anthropic
 
-from em_phi.config import LLMConfig, SenderConfig
+from em_phi.config import LLMConfig, RuleConfig
 from em_phi.models import Email, Verdict
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ Determine whether an incoming email is relevant to the reader based on their \
 interest profile and tolerance level. Respond only with a JSON object — no prose, \
 no markdown fences, no explanation outside the JSON.
 
-## Reader's interest profile for {sender_name}
+## Reader's interest profile for {rule_name}
 {interests}
 
 ## Tolerance: {tolerance}
@@ -42,13 +42,13 @@ Date: {date}
 {body}"""
 
 
-def build_prompt(email: Email, sender: SenderConfig) -> tuple[str, str]:
-    """Return (system_prompt, user_message) for the given email and sender config."""
+def build_prompt(email: Email, rule: RuleConfig) -> tuple[str, str]:
+    """Return (system_prompt, user_message) for the given email and rule config."""
     system = _SYSTEM_TEMPLATE.format(
-        sender_name=sender.name,
-        interests=sender.interests.strip(),
-        tolerance=sender.tolerance,
-        tolerance_guidance=_TOLERANCE_GUIDANCE[sender.tolerance],
+        rule_name=rule.name,
+        interests=rule.interests.strip(),
+        tolerance=rule.tolerance,
+        tolerance_guidance=_TOLERANCE_GUIDANCE[rule.tolerance],
     )
     user = _USER_TEMPLATE.format(
         subject=email.subject,
@@ -70,8 +70,8 @@ class ClaudeClassifier:
         self._model = config.model
         self._max_tokens = config.max_tokens
 
-    def classify(self, email: Email, sender: SenderConfig) -> Verdict:
-        system_prompt, user_message = build_prompt(email, sender)
+    def classify(self, email: Email, rule: RuleConfig) -> Verdict:
+        system_prompt, user_message = build_prompt(email, rule)
 
         logger.debug("Claude: classifying %r (model=%s)", email.subject, self._model)
         response = self._client.messages.create(
@@ -81,8 +81,8 @@ class ClaudeClassifier:
                 {
                     "type": "text",
                     "text": system_prompt,
-                    # Cache the system prompt: same sender → same prompt → cache hit
-                    # on subsequent emails from this sender within a run.
+                    # Cache the system prompt: same rule → same prompt → cache hit
+                    # on subsequent emails from this rule within a run.
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
