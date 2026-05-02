@@ -31,7 +31,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
         error = None
         try:
             new_sender = SenderConfig(
-                email=str(form.get("email", "")).strip(),
+                email=_parse_emails(str(form.get("email", ""))),
                 name=str(form.get("name", "")).strip(),
                 interests=str(form.get("interests", "")).strip(),
                 tolerance=str(form.get("tolerance", "balanced")),
@@ -86,6 +86,39 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             _save_and_reload(state, config, scheduler)
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
+    @r.post("/config/settings")
+    async def save_settings(request: Request):
+        form = await request.form()
+        try:
+            from em_phi.config import DecisionLogConfig, LabelsConfig, LLMConfig, LoggingConfig
+            config = state.config
+            config.llm = LLMConfig(
+                name=config.llm.name,
+                model=str(form.get("model", config.llm.model)).strip(),
+                max_tokens=int(form.get("max_tokens") or 256),
+            )
+            config.labels = LabelsConfig(
+                relevant=str(form.get("labels_relevant", "EmPhi/Relevant")).strip(),
+                irrelevant=str(form.get("labels_irrelevant", "EmPhi/Irrelevant")).strip(),
+            )
+            config.decision_log = DecisionLogConfig(
+                path=str(form.get("decision_log_path", str(config.decision_log.path))).strip()
+            )
+            config.logging = LoggingConfig(
+                level=str(form.get("log_level", "WARNING")),  # type: ignore[arg-type]
+                file=config.logging.file,
+            )
+            fetch_label = str(form.get("fetch_label", "")).strip() or None
+            config.email_provider.fetch_label = fetch_label
+            _save_and_reload(state, config, scheduler)
+        except Exception as exc:
+            return templates.TemplateResponse(request, "config.html", {
+                "config": state.config,
+                "saved": None,
+                "error": str(exc),
+            }, status_code=422)
+        return RedirectResponse(url="/config?saved=1", status_code=303)
+
     @r.post("/config/schedule")
     async def save_schedule(request: Request):
         form = await request.form()
@@ -110,6 +143,10 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
     return r
+
+
+def _parse_emails(raw: str) -> list[str]:
+    return [e.strip() for e in raw.split(",") if e.strip()]
 
 
 def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiScheduler) -> None:

@@ -13,10 +13,11 @@
     <nav class="bg-gray-900 text-white">
       <div class="max-w-6xl mx-auto px-4 flex items-center gap-6 h-12">
         <span class="font-semibold text-indigo-400 tracking-wide">em-phi</span>
-        <a href="/run" class="text-sm hover:text-indigo-300 {% if active == 'run' %}text-white font-medium{% else %}text-gray-400{% endif %}">Run</a>
-        <a href="/log" class="text-sm hover:text-indigo-300 {% if active == 'log' %}text-white font-medium{% else %}text-gray-400{% endif %}">Log</a>
-        <a href="/debug" class="text-sm hover:text-indigo-300 {% if active == 'debug' %}text-white font-medium{% else %}text-gray-400{% endif %}">Debug</a>
-        <a href="/config" class="text-sm hover:text-indigo-300 {% if active == 'config' %}text-white font-medium{% else %}text-gray-400{% endif %}">Config</a>
+        {% set path = request.url.path %}
+        <a href="/run" class="text-sm hover:text-indigo-300 {% if path.startswith('/run') %}text-white font-medium{% else %}text-gray-400{% endif %}">Run</a>
+        <a href="/log" class="text-sm hover:text-indigo-300 {% if path.startswith('/log') %}text-white font-medium{% else %}text-gray-400{% endif %}">Log</a>
+        <a href="/debug" class="text-sm hover:text-indigo-300 {% if path.startswith('/debug') %}text-white font-medium{% else %}text-gray-400{% endif %}">Debug</a>
+        <a href="/config" class="text-sm hover:text-indigo-300 {% if path.startswith('/config') %}text-white font-medium{% else %}text-gray-400{% endif %}">Config</a>
         <form method="post" action="/logout" class="ml-auto">
           <button type="submit" class="text-xs text-gray-500 hover:text-gray-300">Sign out</button>
         </form>

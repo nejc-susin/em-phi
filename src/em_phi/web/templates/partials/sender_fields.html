@@ -1,0 +1,53 @@
+<div>
+  <label class="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
+    Email address(es)
+    <span class="relative group cursor-default">
+      <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-gray-300 text-gray-600 text-[10px] font-bold leading-none select-none">?</span>
+      <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 bg-gray-900 text-white text-xs rounded px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 normal-case font-normal">
+        One address, or comma-separated for multiple — e.g. <code class="bg-gray-700 px-0.5 rounded">a@x.com, b@x.com</code>. Domain-only like <code class="bg-gray-700 px-0.5 rounded">example.com</code> matches all senders from that domain.
+      </span>
+    </span>
+  </label>
+  <input name="email" type="text" required placeholder="newsletter@example.com"
+    value="{{ sender.email | join(', ') if sender is defined else '' }}"
+    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+</div>
+
+<div>
+  <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
+  <input name="name" type="text" required placeholder="Example Newsletter"
+    value="{{ sender.name if sender is defined else '' }}"
+    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+</div>
+
+<div class="sm:col-span-2">
+  <label class="block text-xs font-medium text-gray-600 mb-1">Interest profile</label>
+  <textarea name="interests" rows="4" required
+    placeholder="What you want to read from this sender. What you don't want. Be specific."
+    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y">{{ sender.interests if sender is defined else '' }}</textarea>
+</div>
+
+<div>
+  <label class="block text-xs font-medium text-gray-600 mb-1">Tolerance</label>
+  <select name="tolerance" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    {% set tols = [
+      ("aggressive",   "aggressive — archive unless clearly relevant"),
+      ("balanced",     "balanced — archive only clearly irrelevant"),
+      ("conservative", "conservative — keep anything slightly relevant"),
+    ] %}
+    {% for value, label in tols %}
+    <option value="{{ value }}"
+      {% if sender is defined and sender.tolerance == value %}selected
+      {% elif sender is not defined and value == "balanced" %}selected
+      {% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<div>
+  <label class="block text-xs font-medium text-gray-600 mb-1">Action for irrelevant emails</label>
+  <select name="action" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    <option value="label"   {% if sender is not defined or sender.action == "label"   %}selected{% endif %}>label — keep in inbox with irrelevant label</option>
+    <option value="archive" {% if sender is defined     and sender.action == "archive" %}selected{% endif %}>archive — label and remove from inbox</option>
+  </select>
+</div>

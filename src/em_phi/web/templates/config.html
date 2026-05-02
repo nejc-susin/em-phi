@@ -6,15 +6,13 @@
 <h1 class="text-xl font-semibold text-gray-900 mb-6">Config</h1>
 
 {% if saved %}
-<div class="bg-green-50 border border-green-200 rounded-lg px-5 py-3 text-sm text-green-800 mb-6">
-  Config saved successfully.
-</div>
+<div class="bg-green-50 border border-green-200 rounded-lg px-5 py-3 text-sm text-green-800 mb-6">Config saved successfully.</div>
 {% endif %}
 {% if error %}
 <div class="bg-red-50 border border-red-200 rounded-lg px-5 py-3 text-sm text-red-700 mb-6">{{ error }}</div>
 {% endif %}
 
-<!-- Senders -->
+<!-- ── Senders ── -->
 <div class="bg-white shadow rounded-lg mb-6">
   <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
     <h2 class="text-base font-medium text-gray-900">Senders</h2>
@@ -22,39 +20,10 @@
       class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Add sender</button>
   </div>
 
-  <!-- Add sender form -->
+  <!-- Add sender -->
   <div id="add-sender-form" class="hidden border-b border-gray-100 bg-gray-50 px-5 py-4">
     <form method="post" action="/config/sender/add" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Email address(es) <span class="text-gray-400">(comma-separated)</span></label>
-        <input name="email" type="text" required placeholder="news@example.com"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
-        <input name="name" type="text" required placeholder="Example Newsletter"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-      </div>
-      <div class="sm:col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">Interest profile</label>
-        <textarea name="interests" rows="3" required placeholder="What you want to read from this sender. What you don't want. Be specific."
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y"></textarea>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Tolerance</label>
-        <select name="tolerance" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="aggressive">aggressive — archive unless clearly relevant</option>
-          <option value="balanced" selected>balanced — archive only clearly irrelevant</option>
-          <option value="conservative">conservative — keep anything slightly relevant</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Action for irrelevant</label>
-        <select name="action" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="label" selected>label (keep in inbox)</option>
-          <option value="archive">archive</option>
-        </select>
-      </div>
+      {% include "partials/sender_fields.html" with context %}
       <div class="sm:col-span-2 flex gap-2">
         <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded transition-colors">Add</button>
         <button type="button" onclick="document.getElementById('add-sender-form').classList.add('hidden')"
@@ -63,7 +32,6 @@
     </form>
   </div>
 
-  <!-- Sender list -->
   {% if config.senders %}
   <ul class="divide-y divide-gray-100">
     {% for s in config.senders %}
@@ -72,50 +40,25 @@
         <div class="min-w-0">
           <p class="text-sm font-medium text-gray-900">{{ s.name }}</p>
           <p class="text-xs text-gray-500 mt-0.5">{{ s.email | join(', ') }}</p>
-          <p class="text-xs text-gray-400 mt-1">{{ s.tolerance }} &middot; {{ s.action }}</p>
+          <p class="text-xs text-gray-400 mt-1">
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{{ s.tolerance }}</span>
+            &middot;
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{{ s.action }}</span>
+          </p>
         </div>
-        <div class="flex gap-2 shrink-0">
+        <div class="flex gap-3 shrink-0 items-start">
           <button onclick="toggleEdit({{ loop.index0 }})"
             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
           <form method="post" action="/config/sender/{{ loop.index0 }}/delete"
-            onsubmit="return confirm('Delete sender {{ s.name }}?')">
+            onsubmit="return confirm('Delete sender {{ s.name }}?')" class="contents">
             <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
           </form>
         </div>
       </div>
-      <!-- Edit form (hidden by default) -->
       <div id="edit-{{ loop.index0 }}" class="hidden mt-4 bg-gray-50 rounded-lg p-4">
         <form method="post" action="/config/sender/{{ loop.index0 }}/edit" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Email(s)</label>
-            <input name="email" type="text" required value="{{ s.email | join(', ') }}"
-              class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
-            <input name="name" type="text" required value="{{ s.name }}"
-              class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          </div>
-          <div class="sm:col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Interest profile</label>
-            <textarea name="interests" rows="4" required
-              class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y">{{ s.interests }}</textarea>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Tolerance</label>
-            <select name="tolerance" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="aggressive" {% if s.tolerance == 'aggressive' %}selected{% endif %}>aggressive</option>
-              <option value="balanced" {% if s.tolerance == 'balanced' %}selected{% endif %}>balanced</option>
-              <option value="conservative" {% if s.tolerance == 'conservative' %}selected{% endif %}>conservative</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Action for irrelevant</label>
-            <select name="action" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="label" {% if s.action == 'label' %}selected{% endif %}>label</option>
-              <option value="archive" {% if s.action == 'archive' %}selected{% endif %}>archive</option>
-            </select>
-          </div>
+          {% set sender = s %}
+          {% include "partials/sender_fields.html" with context %}
           <div class="sm:col-span-2 flex gap-2">
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded transition-colors">Save</button>
             <button type="button" onclick="toggleEdit({{ loop.index0 }})"
@@ -131,11 +74,11 @@
   {% endif %}
 </div>
 
-<!-- Schedule -->
+<!-- ── Schedule ── -->
 <div class="bg-white shadow rounded-lg mb-6">
   <div class="px-5 py-4 border-b border-gray-100">
     <h2 class="text-base font-medium text-gray-900">Schedule</h2>
-    <p class="text-xs text-gray-500 mt-0.5">Controls automatic runs in web mode. Ignored by <code class="bg-gray-100 px-1 rounded">em-phi run</code>.</p>
+    <p class="text-xs text-gray-500 mt-0.5">Automatic runs in web mode only. Ignored by <code class="bg-gray-100 px-1 rounded">em-phi run</code>.</p>
   </div>
   <form method="post" action="/config/schedule" class="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
     <div class="flex items-center gap-2 sm:col-span-3">
@@ -150,32 +93,96 @@
         class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     </div>
     <div>
-      <label class="block text-xs font-medium text-gray-600 mb-1">Or cron expression <span class="text-gray-400">(overrides interval)</span></label>
+      <label class="block text-xs font-medium text-gray-600 mb-1">
+        Cron expression
+        <span class="text-gray-400 font-normal">(overrides interval)</span>
+      </label>
       <input name="cron" type="text" value="{{ config.schedule.cron or '' }}" placeholder="0 */6 * * *"
         class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     </div>
     <div>
-      <button type="submit" class="w-full bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Save schedule</button>
+      <button type="submit" class="w-full bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Save</button>
     </div>
   </form>
 </div>
 
-<!-- Read-only info -->
-<div class="bg-white shadow rounded-lg">
+<!-- ── Global settings ── -->
+<div class="bg-white shadow rounded-lg mb-6">
   <div class="px-5 py-4 border-b border-gray-100">
     <h2 class="text-base font-medium text-gray-900">Settings</h2>
-    <p class="text-xs text-gray-500 mt-0.5">Edit <code class="bg-gray-100 px-1 rounded">config.yaml</code> directly to change these.</p>
   </div>
-  <dl class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-    <div><dt class="text-xs text-gray-500">Model</dt><dd class="text-gray-900 mt-0.5">{{ config.llm.model }}</dd></div>
-    <div><dt class="text-xs text-gray-500">Max tokens</dt><dd class="text-gray-900 mt-0.5">{{ config.llm.max_tokens }}</dd></div>
-    <div><dt class="text-xs text-gray-500">Relevant label</dt><dd class="text-gray-900 mt-0.5">{{ config.labels.relevant }}</dd></div>
-    <div><dt class="text-xs text-gray-500">Irrelevant label</dt><dd class="text-gray-900 mt-0.5">{{ config.labels.irrelevant }}</dd></div>
-    <div><dt class="text-xs text-gray-500">Decision log</dt><dd class="text-gray-900 mt-0.5">{{ config.decision_log.path }}</dd></div>
-    <div><dt class="text-xs text-gray-500">Log level</dt><dd class="text-gray-900 mt-0.5">{{ config.logging.level }}</dd></div>
-  </dl>
-  <p class="px-5 pb-4 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
-    Note: saving via this UI rewrites config.yaml and does not preserve comments.
+  <form method="post" action="/config/settings" class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+    <!-- Model -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Claude model</label>
+      <select name="model" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% set models = [
+          ("claude-haiku-4-5-20251001", "Haiku 4.5 — fast & cheap (recommended)"),
+          ("claude-sonnet-4-6",         "Sonnet 4.6 — balanced"),
+          ("claude-opus-4-7",           "Opus 4.7 — most capable"),
+        ] %}
+        {% for value, label in models %}
+        <option value="{{ value }}" {% if config.llm.model == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+        {% if config.llm.model not in ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"] %}
+        <option value="{{ config.llm.model }}" selected>{{ config.llm.model }}</option>
+        {% endif %}
+      </select>
+    </div>
+
+    <!-- Max tokens -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Max tokens</label>
+      <input name="max_tokens" type="number" min="64" max="4096" value="{{ config.llm.max_tokens }}"
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <!-- Labels -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Relevant label</label>
+      <input name="labels_relevant" type="text" value="{{ config.labels.relevant }}" required
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Irrelevant label</label>
+      <input name="labels_irrelevant" type="text" value="{{ config.labels.irrelevant }}" required
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <!-- Decision log path -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Decision log path</label>
+      <input name="decision_log_path" type="text" value="{{ config.decision_log.path }}" required
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <!-- Log level -->
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Log level</label>
+      <select name="log_level" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% for level in ["DEBUG", "INFO", "WARNING", "ERROR"] %}
+        <option value="{{ level }}" {% if config.logging.level == level %}selected{% endif %}>{{ level }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Fetch label -->
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-600 mb-1">
+        Gmail fetch label
+        <span class="text-gray-400 font-normal">— only process emails carrying this label (leave empty to fetch all unread)</span>
+      </label>
+      <input name="fetch_label" type="text" value="{{ config.email_provider.fetch_label or '' }}" placeholder="ToFilter"
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+    </div>
+
+    <div class="sm:col-span-2">
+      <button type="submit" class="bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Save settings</button>
+    </div>
+  </form>
+  <p class="px-5 py-3 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
+    Saving via this UI rewrites config.yaml and does not preserve comments.
   </p>
 </div>
 
