@@ -7,7 +7,7 @@ services:
 #    environment:
 #      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
 #      EM_PHI_CONFIG: /data/config.yaml
-#    # Default CMD is "run". Override with: command: ["run", "--dry-run"]
+#    # Default CMD is "serve". Override with: command: ["run"] or command: ["run", "--dry-run"]
 
   # Web mode: always-on dashboard with built-in scheduler
   # Requires a 'web:' block in config.yaml (see config.example.yaml)
