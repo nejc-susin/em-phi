@@ -1,5 +1,26 @@
 # CLAUDE.md
 
+## Deploy to Docker Hub
+
+Image: `nejcsusin/em-phi` — multi-platform (linux/amd64 + linux/arm64).
+
+```bash
+cd /Users/nejcsusin/git/em-phi
+docker buildx build --platform linux/amd64,linux/arm64 -t nejcsusin/em-phi:latest --push .
+```
+
+The buildx builder (`em-phi-builder`) was created once and persists. If it's ever missing, recreate it with:
+```bash
+docker buildx create --use --name em-phi-builder
+```
+
+On the server, pull and restart:
+```bash
+docker compose pull && docker compose up -d
+```
+
+---
+
 ## Project overview
 
 **em-phi** is a self-hosted, AI-powered Gmail newsletter filter. It fetches unread emails from configured rules, classifies each one with Claude Haiku using a per-rule interest profile, and labels or archives based on the verdict. Every decision is logged to SQLite.
