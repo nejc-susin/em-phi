@@ -34,3 +34,7 @@ class EmailProvider(Protocol):
     def archive(self, message_id: str) -> None:
         """Remove the message from the inbox without deleting it."""
         ...
+
+    def move_to_inbox(self, message_id: str) -> None:
+        """Add the message to the inbox (add INBOX label)."""
+        ...

@@ -45,9 +45,10 @@
 </div>
 
 <div>
-  <label class="block text-xs font-medium text-gray-600 mb-1">Action for irrelevant emails</label>
+  <label class="block text-xs font-medium text-gray-600 mb-1">Action</label>
   <select name="action" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-    <option value="label"   {% if rule is not defined or rule.action == "label"   %}selected{% endif %}>label — keep in inbox with irrelevant label</option>
-    <option value="archive" {% if rule is defined     and rule.action == "archive" %}selected{% endif %}>archive — label and remove from inbox</option>
+    <option value="label"   {% if rule is not defined or rule.action == "label"   %}selected{% endif %}>label — label and keep in inbox</option>
+    <option value="archive" {% if rule is defined     and rule.action == "archive" %}selected{% endif %}>archive — label irrelevant and remove from inbox</option>
+    <option value="inbox"   {% if rule is defined     and rule.action == "inbox"   %}selected{% endif %}>inbox — move relevant to inbox, archive irrelevant</option>
   </select>
 </div>

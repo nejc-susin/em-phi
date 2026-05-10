@@ -156,6 +156,19 @@ class GmailProvider:
             logger.warning("Gmail API error archiving %s: %s", message_id, e)
             raise RuntimeError(f"Gmail API error archiving {message_id}: {e}") from e
 
+    def move_to_inbox(self, message_id: str) -> None:
+        """Add the message to INBOX."""
+        logger.debug("Gmail: moving %s to inbox", message_id)
+        try:
+            self._service.users().messages().modify(
+                userId="me",
+                id=message_id,
+                body={"addLabelIds": ["INBOX"]},
+            ).execute()
+        except HttpError as e:
+            logger.warning("Gmail API error moving %s to inbox: %s", message_id, e)
+            raise RuntimeError(f"Gmail API error moving {message_id} to inbox: {e}") from e
+
     # ------------------------------------------------------------------
     # Label management
     # ------------------------------------------------------------------

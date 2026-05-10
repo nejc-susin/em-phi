@@ -78,7 +78,7 @@ class RuleConfig(BaseModel):
     name: str
     interests: str
     tolerance: Literal["aggressive", "balanced", "conservative"] = "balanced"
-    action: Literal["label", "archive"] = "label"
+    action: Literal["label", "archive", "inbox"] = "label"
 
     @field_validator("email", mode="before")
     @classmethod

@@ -18,16 +18,18 @@ def apply_verdict(
 ) -> str:
     """Apply the verdict to the email and return the action taken.
 
-    Relevant emails are always labelled and kept in inbox.
-    Irrelevant emails are labelled, and archived if rule.action == 'archive'.
+    action: label  — label only (relevant stays in inbox, irrelevant stays wherever it is)
+    action: archive — label + archive irrelevant (relevant stays in inbox)
+    action: inbox  — label + move relevant to inbox, label + archive irrelevant
+
     In dry_run mode no Gmail API calls are made.
     """
     if verdict.verdict == "relevant":
         label = labels.relevant
-        action = "label"
+        action = "inbox" if rule.action == "inbox" else "label"
     else:
         label = labels.irrelevant
-        action = rule.action  # "label" or "archive"
+        action = "archive" if rule.action in ("archive", "inbox") else "label"
 
     if dry_run:
         logger.debug("Actions: [DRY RUN] would label=%r action=%s on %s", label, action, email.message_id)
@@ -37,5 +39,8 @@ def apply_verdict(
         if action == "archive":
             provider.archive(email.message_id)
             logger.info("Actions: archived %s", email.message_id)
+        elif action == "inbox":
+            provider.move_to_inbox(email.message_id)
+            logger.info("Actions: moved %s to inbox", email.message_id)
 
     return action
