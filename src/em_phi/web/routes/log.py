@@ -45,7 +45,10 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
             limit=limit, offset=offset,
         )
         counts = log.count(rule_email=rule, days=days, verdict=verdict, action=action, search=search)
-        known_rules = sorted({e for r in state.config.rules for e in r.email})
+        rule_options = sorted(
+            {(e, r.name) for r in state.config.rules for e in r.email},
+            key=lambda pair: pair[0],
+        )
         total = sum(counts.values())
 
         return templates.TemplateResponse(request, "log.html", {
@@ -59,7 +62,7 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
             "filter_search": search,
             "filter_limit": limit,
             "filter_offset": offset,
-            "known_rules": known_rules,
+            "rule_options": rule_options,
         })
 
     return r
