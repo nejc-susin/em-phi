@@ -137,14 +137,15 @@ class DecisionLog:
         rule_email: str | None = None,
         days: int | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[LogEntry]:
         conditions, params = self._conditions(rule_email=rule_email, days=days)
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        params = params + [limit]
+        params = params + [limit, offset]
 
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC LIMIT ?",
+                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
 

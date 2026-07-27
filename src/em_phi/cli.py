@@ -62,10 +62,13 @@ def check_config(ctx: click.Context) -> None:
 
 @cli.command("log")
 @click.option("--rule", default=None, help="Filter by rule email address.")
-@click.option("--days", default=None, type=int, help="Limit to decisions from the last N days.")
-@click.option("--limit", default=20, show_default=True, help="Maximum number of entries to show.")
+@click.option("--days", default=None, type=click.IntRange(min=1), help="Limit to decisions from the last N days.")
+@click.option("--limit", default=20, show_default=True, type=click.IntRange(min=1, max=500),
+              help="Maximum number of entries to show.")
+@click.option("--offset", default=0, show_default=True, type=click.IntRange(min=0),
+              help="Number of matching entries to skip (for paging).")
 @click.pass_context
-def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int) -> None:
+def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int, offset: int) -> None:
     """Show recent decisions from the decision log."""
     config_path: Path = ctx.obj["config_path"]
 
@@ -79,7 +82,7 @@ def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int) 
         raise click.ClickException(f"Decision log not found: {db_path}\nRun `em-phi run` first.")
 
     log = DecisionLog(db_path)
-    entries = log.query(rule_email=rule, days=days, limit=limit)
+    entries = log.query(rule_email=rule, days=days, limit=limit, offset=offset)
 
     if not entries:
         click.echo("No entries found.")

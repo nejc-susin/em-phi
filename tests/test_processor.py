@@ -132,6 +132,27 @@ def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_v
     assert len(log.query(limit=100)) == 1
 
 
+def test_decision_log_query_offset_pages_through_results(tmp_db: Path, relevant_email, relevant_verdict) -> None:
+    log = DecisionLog(tmp_db)
+    for i in range(3):
+        log.record(
+            message_id=f"msg{i}",
+            sender=relevant_email.sender,
+            subject=f"Subject {i}",
+            received_at=relevant_email.received_at,
+            verdict=relevant_verdict,
+            action_taken="label",
+        )
+
+    page1 = log.query(limit=2, offset=0)
+    page2 = log.query(limit=2, offset=2)
+    assert len(page1) == 2
+    assert len(page2) == 1
+    seen_ids = {e.message_id for e in page1} | {e.message_id for e in page2}
+    assert seen_ids == {"msg0", "msg1", "msg2"}
+    assert {e.message_id for e in page1}.isdisjoint({e.message_id for e in page2})
+
+
 def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelevant_email,
                                            relevant_verdict, irrelevant_verdict) -> None:
     log = DecisionLog(tmp_db)

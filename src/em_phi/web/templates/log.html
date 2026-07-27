@@ -28,9 +28,11 @@
   </div>
   <div>
     <label class="block text-xs font-medium text-gray-600 mb-1">Limit</label>
-    <input name="limit" type="number" min="1" value="{{ filter_limit }}"
+    <input name="limit" type="number" min="1" max="500" value="{{ filter_limit }}"
       class="border border-gray-300 rounded px-3 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-indigo-500">
   </div>
+  <!-- changing filters starts back at page 1 -->
+  <input type="hidden" name="offset" value="0">
   <button type="submit" class="bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Filter</button>
   <a href="/log" class="text-sm text-gray-500 hover:text-gray-700 py-1.5">Clear</a>
 </form>
@@ -71,6 +73,29 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+{% set range_start = filter_offset + 1 %}
+{% set range_end = filter_offset + entries|length %}
+{% set has_prev = filter_offset > 0 %}
+{% set has_next = range_end < total %}
+<div class="flex items-center justify-between mt-3 text-sm text-gray-500">
+  <div>Showing {{ range_start }}&ndash;{{ range_end }} of {{ total }}</div>
+  <div class="flex gap-2">
+    {% set base_params = "rule=" ~ (filter_rule or '') | urlencode ~ "&days=" ~ (filter_days or '') ~ "&limit=" ~ filter_limit %}
+    {% if has_prev %}
+    <a href="/log?{{ base_params }}&offset={{ [0, filter_offset - filter_limit] | max }}"
+       class="px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">Previous</a>
+    {% else %}
+    <span class="px-3 py-1.5 rounded border border-gray-200 text-gray-300">Previous</span>
+    {% endif %}
+    {% if has_next %}
+    <a href="/log?{{ base_params }}&offset={{ filter_offset + filter_limit }}"
+       class="px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">Next</a>
+    {% else %}
+    <span class="px-3 py-1.5 rounded border border-gray-200 text-gray-300">Next</span>
+    {% endif %}
+  </div>
 </div>
 {% else %}
 <div class="bg-white shadow rounded-lg px-6 py-12 text-center text-gray-400">

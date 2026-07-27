@@ -7,6 +7,9 @@ from fastapi.templating import Jinja2Templates
 from em_phi.decision_log import DecisionLog
 from em_phi.web.state import AppState
 
+_MIN_LIMIT = 1
+_MAX_LIMIT = 500
+
 
 def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     r = APIRouter()
@@ -17,18 +20,29 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
         rule: str | None = None,
         days: int | None = None,
         limit: int = 50,
+        offset: int = 0,
     ):
+        # Clamp rather than reject: this is a browsed page, not an API — a
+        # stray query string shouldn't surface a raw validation error.
+        limit = max(_MIN_LIMIT, min(limit, _MAX_LIMIT))
+        offset = max(0, offset)
+        if days is not None and days < 1:
+            days = None
+
         log = DecisionLog(state.config.decision_log.path)
-        entries = log.query(rule_email=rule, days=days, limit=limit)
+        entries = log.query(rule_email=rule, days=days, limit=limit, offset=offset)
         counts = log.count(rule_email=rule, days=days)
         known_rules = sorted({e for r in state.config.rules for e in r.email})
+        total = sum(counts.values())
 
         return templates.TemplateResponse(request, "log.html", {
             "entries": entries,
             "counts": counts,
+            "total": total,
             "filter_rule": rule,
             "filter_days": days,
             "filter_limit": limit,
+            "filter_offset": offset,
             "known_rules": known_rules,
         })
 
