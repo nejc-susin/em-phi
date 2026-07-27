@@ -96,12 +96,13 @@ def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int) 
         verdict_col = f"{e.verdict} ({e.confidence[:3]})"
         click.echo(f"{date:<17}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<16}  {e.action_taken}")
 
-    totals = log.count()
+    totals = log.count(rule_email=rule, days=days)
     click.echo()
     total = sum(totals.values())
     relevant = totals.get("relevant", 0)
     irrelevant = totals.get("irrelevant", 0)
-    click.echo(f"Total in log: {total}  ({relevant} relevant, {irrelevant} irrelevant)")
+    label = "Matching filter" if (rule or days) else "Total in log"
+    click.echo(f"{label}: {total}  ({relevant} relevant, {irrelevant} irrelevant)")
 
 
 @cli.command("run")

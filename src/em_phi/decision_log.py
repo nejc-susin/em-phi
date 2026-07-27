@@ -112,13 +112,12 @@ class DecisionLog:
                 ),
             )
 
-    def query(
-        self,
+    @staticmethod
+    def _conditions(
         *,
-        rule_email: str | None = None,
-        days: int | None = None,
-        limit: int = 20,
-    ) -> list[LogEntry]:
+        rule_email: str | None,
+        days: int | None,
+    ) -> tuple[list[str], list[object]]:
         conditions: list[str] = []
         params: list[object] = []
 
@@ -130,8 +129,18 @@ class DecisionLog:
             conditions.append("processed_at >= ?")
             params.append(since)
 
+        return conditions, params
+
+    def query(
+        self,
+        *,
+        rule_email: str | None = None,
+        days: int | None = None,
+        limit: int = 20,
+    ) -> list[LogEntry]:
+        conditions, params = self._conditions(rule_email=rule_email, days=days)
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        params.append(limit)
+        params = params + [limit]
 
         with self._connect() as conn:
             rows = conn.execute(
@@ -141,9 +150,18 @@ class DecisionLog:
 
         return [LogEntry(**dict(row)) for row in rows]
 
-    def count(self) -> dict[str, int]:
+    def count(
+        self,
+        *,
+        rule_email: str | None = None,
+        days: int | None = None,
+    ) -> dict[str, int]:
+        conditions, params = self._conditions(rule_email=rule_email, days=days)
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT verdict, COUNT(*) as n FROM decisions GROUP BY verdict"
+                f"SELECT verdict, COUNT(*) as n FROM decisions {where} GROUP BY verdict",
+                params,
             ).fetchall()
         return {row["verdict"]: row["n"] for row in rows}

@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-xl font-semibold text-gray-900">Decision log</h1>
   <div class="text-sm text-gray-500">
-    {{ counts.get('relevant', 0) }} relevant &middot; {{ counts.get('irrelevant', 0) }} irrelevant
+    {% if filter_rule or filter_days %}matching filter: {% endif %}{{ counts.get('relevant', 0) }} relevant &middot; {{ counts.get('irrelevant', 0) }} irrelevant
   </div>
 </div>
 

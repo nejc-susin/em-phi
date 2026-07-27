@@ -20,7 +20,7 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     ):
         log = DecisionLog(state.config.decision_log.path)
         entries = log.query(rule_email=rule, days=days, limit=limit)
-        counts = log.count()
+        counts = log.count(rule_email=rule, days=days)
         known_rules = sorted({e for r in state.config.rules for e in r.email})
 
         return templates.TemplateResponse(request, "log.html", {
