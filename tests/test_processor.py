@@ -156,6 +156,27 @@ def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelev
     assert results[0].sender == "a@example.com"
 
 
+def test_decision_log_query_filter_matches_display_name_sender(
+    tmp_db: Path, relevant_email, relevant_verdict,
+) -> None:
+    """Real 'From' headers include a display name; filtering by the bare
+    configured address must still match."""
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender="Example Newsletter <newsletter@example.com>",
+        subject=relevant_email.subject,
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="label",
+    )
+
+    results = log.query(rule_email="newsletter@example.com")
+    assert len(results) == 1
+    results = log.query(rule_email="NEWSLETTER@EXAMPLE.COM")
+    assert len(results) == 1
+
+
 # ------------------------------------------------------------------
 # processor._process_rule
 # ------------------------------------------------------------------

@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Iterator
 
@@ -28,6 +29,11 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE INDEX IF NOT EXISTS idx_sender       ON decisions(sender);
 CREATE INDEX IF NOT EXISTS idx_processed_at ON decisions(processed_at);
 """
+
+
+def _address_of(raw: str) -> str:
+    """Extract the bare address from a "From" header value (e.g. 'Name <a@b.com>' -> 'a@b.com')."""
+    return parseaddr(raw)[1].lower()
 
 
 @dataclass
@@ -58,6 +64,7 @@ class DecisionLog:
     def _connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
+        conn.create_function("addr_of", 1, _address_of)
         try:
             yield conn
             conn.commit()
@@ -116,8 +123,8 @@ class DecisionLog:
         params: list[object] = []
 
         if rule_email:
-            conditions.append("sender = ?")
-            params.append(rule_email)
+            conditions.append("addr_of(sender) = ?")
+            params.append(rule_email.lower())
         if days is not None:
             since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
             conditions.append("processed_at >= ?")
