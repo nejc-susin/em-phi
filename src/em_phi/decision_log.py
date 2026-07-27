@@ -36,6 +36,11 @@ def _address_of(raw: str) -> str:
     return parseaddr(raw)[1].lower()
 
 
+def _like_escape(term: str) -> str:
+    """Escape SQLite LIKE wildcards so a literal % or _ in search text isn't treated as a wildcard."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @dataclass
 class LogEntry:
     id: int
@@ -117,6 +122,9 @@ class DecisionLog:
         *,
         rule_email: str | None,
         days: int | None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
     ) -> tuple[list[str], list[object]]:
         conditions: list[str] = []
         params: list[object] = []
@@ -128,6 +136,17 @@ class DecisionLog:
             since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
             conditions.append("processed_at >= ?")
             params.append(since)
+        if verdict:
+            conditions.append("verdict = ?")
+            params.append(verdict)
+        if action:
+            conditions.append("action_taken = ?")
+            params.append(action)
+        if search:
+            conditions.append("(subject LIKE ? ESCAPE '\\' OR reason LIKE ? ESCAPE '\\')")
+            pattern = f"%{_like_escape(search)}%"
+            params.append(pattern)
+            params.append(pattern)
 
         return conditions, params
 
@@ -136,10 +155,15 @@ class DecisionLog:
         *,
         rule_email: str | None = None,
         days: int | None = None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[LogEntry]:
-        conditions, params = self._conditions(rule_email=rule_email, days=days)
+        conditions, params = self._conditions(
+            rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+        )
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = params + [limit, offset]
 
@@ -156,8 +180,13 @@ class DecisionLog:
         *,
         rule_email: str | None = None,
         days: int | None = None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
     ) -> dict[str, int]:
-        conditions, params = self._conditions(rule_email=rule_email, days=days)
+        conditions, params = self._conditions(
+            rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+        )
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         with self._connect() as conn:

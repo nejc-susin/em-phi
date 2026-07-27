@@ -63,12 +63,25 @@ def check_config(ctx: click.Context) -> None:
 @cli.command("log")
 @click.option("--rule", default=None, help="Filter by rule email address.")
 @click.option("--days", default=None, type=click.IntRange(min=1), help="Limit to decisions from the last N days.")
+@click.option("--verdict", default=None, type=click.Choice(["relevant", "irrelevant"]), help="Filter by verdict.")
+@click.option("--action", "action_taken", default=None, type=click.Choice(["label", "archive", "keep"]),
+              help="Filter by action taken.")
+@click.option("--search", default=None, help="Filter to entries whose subject or reason contains this text.")
 @click.option("--limit", default=20, show_default=True, type=click.IntRange(min=1, max=500),
               help="Maximum number of entries to show.")
 @click.option("--offset", default=0, show_default=True, type=click.IntRange(min=0),
               help="Number of matching entries to skip (for paging).")
 @click.pass_context
-def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int, offset: int) -> None:
+def log_cmd(
+    ctx: click.Context,
+    rule: str | None,
+    days: int | None,
+    verdict: str | None,
+    action_taken: str | None,
+    search: str | None,
+    limit: int,
+    offset: int,
+) -> None:
     """Show recent decisions from the decision log."""
     config_path: Path = ctx.obj["config_path"]
 
@@ -82,7 +95,10 @@ def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int, 
         raise click.ClickException(f"Decision log not found: {db_path}\nRun `em-phi run` first.")
 
     log = DecisionLog(db_path)
-    entries = log.query(rule_email=rule, days=days, limit=limit, offset=offset)
+    entries = log.query(
+        rule_email=rule, days=days, verdict=verdict, action=action_taken, search=search,
+        limit=limit, offset=offset,
+    )
 
     if not entries:
         click.echo("No entries found.")
@@ -99,12 +115,12 @@ def log_cmd(ctx: click.Context, rule: str | None, days: int | None, limit: int, 
         verdict_col = f"{e.verdict} ({e.confidence[:3]})"
         click.echo(f"{date:<17}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<16}  {e.action_taken}")
 
-    totals = log.count(rule_email=rule, days=days)
+    totals = log.count(rule_email=rule, days=days, verdict=verdict, action=action_taken, search=search)
     click.echo()
     total = sum(totals.values())
     relevant = totals.get("relevant", 0)
     irrelevant = totals.get("irrelevant", 0)
-    label = "Matching filter" if (rule or days) else "Total in log"
+    label = "Matching filter" if (rule or days or verdict or action_taken or search) else "Total in log"
     click.echo(f"{label}: {total}  ({relevant} relevant, {irrelevant} irrelevant)")
 
 

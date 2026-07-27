@@ -6,7 +6,7 @@
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-xl font-semibold text-gray-900">Decision log</h1>
   <div class="text-sm text-gray-500">
-    {% if filter_rule or filter_days %}matching filter: {% endif %}{{ counts.get('relevant', 0) }} relevant &middot; {{ counts.get('irrelevant', 0) }} irrelevant
+    {% if filter_rule or filter_days or filter_verdict or filter_action or filter_search %}matching filter: {% endif %}{{ counts.get('relevant', 0) }} relevant &middot; {{ counts.get('irrelevant', 0) }} irrelevant
   </div>
 </div>
 
@@ -25,6 +25,28 @@
     <label class="block text-xs font-medium text-gray-600 mb-1">Days</label>
     <input name="days" type="number" min="1" value="{{ filter_days or '' }}" placeholder="All time"
       class="border border-gray-300 rounded px-3 py-1.5 text-sm w-24 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Verdict</label>
+    <select name="verdict" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="">All</option>
+      <option value="relevant" {% if filter_verdict == 'relevant' %}selected{% endif %}>relevant</option>
+      <option value="irrelevant" {% if filter_verdict == 'irrelevant' %}selected{% endif %}>irrelevant</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Action</label>
+    <select name="action" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <option value="">All</option>
+      <option value="label" {% if filter_action == 'label' %}selected{% endif %}>label</option>
+      <option value="archive" {% if filter_action == 'archive' %}selected{% endif %}>archive</option>
+      <option value="keep" {% if filter_action == 'keep' %}selected{% endif %}>keep</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Search</label>
+    <input name="search" type="text" value="{{ filter_search or '' }}" placeholder="Subject or reason"
+      class="border border-gray-300 rounded px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-indigo-500">
   </div>
   <div>
     <label class="block text-xs font-medium text-gray-600 mb-1">Limit</label>
@@ -82,7 +104,12 @@
 <div class="flex items-center justify-between mt-3 text-sm text-gray-500">
   <div>Showing {{ range_start }}&ndash;{{ range_end }} of {{ total }}</div>
   <div class="flex gap-2">
-    {% set base_params = "rule=" ~ (filter_rule or '') | urlencode ~ "&days=" ~ (filter_days or '') ~ "&limit=" ~ filter_limit %}
+    {% set base_params = "rule=" ~ (filter_rule or '') | urlencode
+        ~ "&days=" ~ (filter_days or '')
+        ~ "&verdict=" ~ (filter_verdict or '')
+        ~ "&action=" ~ (filter_action or '')
+        ~ "&search=" ~ (filter_search or '') | urlencode
+        ~ "&limit=" ~ filter_limit %}
     {% if has_prev %}
     <a href="/log?{{ base_params }}&offset={{ [0, filter_offset - filter_limit] | max }}"
        class="px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50">Previous</a>

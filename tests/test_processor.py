@@ -202,6 +202,36 @@ def test_decision_log_count_respects_filters(tmp_db: Path, relevant_email, irrel
     assert log.count(rule_email="b@example.com") == {"irrelevant": 1}
 
 
+def test_decision_log_query_filter_by_verdict_action_and_search(
+    tmp_db: Path, relevant_email, irrelevant_email, relevant_verdict, irrelevant_verdict,
+) -> None:
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender=relevant_email.sender,
+        subject=relevant_email.subject,  # "Python 3.14 released"
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="label",
+    )
+    log.record(
+        message_id=irrelevant_email.message_id,
+        sender=irrelevant_email.sender,
+        subject=irrelevant_email.subject,  # "Join our community meetup"
+        received_at=irrelevant_email.received_at,
+        verdict=irrelevant_verdict,
+        action_taken="archive",
+    )
+
+    assert [e.message_id for e in log.query(verdict="relevant")] == ["msg001"]
+    assert [e.message_id for e in log.query(action="archive")] == ["msg002"]
+    assert [e.message_id for e in log.query(search="python")] == ["msg001"]
+    assert [e.message_id for e in log.query(search="meetup")] == ["msg002"]
+    assert log.query(search="nonexistent") == []
+    assert log.count(verdict="relevant") == {"relevant": 1}
+    assert log.count(action="archive") == {"irrelevant": 1}
+
+
 def test_decision_log_query_filter_matches_display_name_sender(
     tmp_db: Path, relevant_email, relevant_verdict,
 ) -> None:
