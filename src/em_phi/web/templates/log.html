@@ -75,7 +75,7 @@
     <tbody class="divide-y divide-gray-100">
       {% for e in entries %}
       <tr class="hover:bg-gray-50">
-        <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ e.processed_at[:16] }}</td>
+        <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ e.processed_at[:16] }} UTC</td>
         <td class="px-4 py-3 text-gray-700 max-w-[200px] truncate">{{ e.sender }}</td>
         <td class="px-4 py-3 text-gray-900 max-w-[280px] truncate">{{ e.subject }}</td>
         <td class="px-4 py-3 whitespace-nowrap">
