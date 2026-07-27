@@ -81,11 +81,11 @@
         <td class="px-4 py-3 whitespace-nowrap">
           {% if e.verdict == 'relevant' %}
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-            relevant · {{ e.confidence[:3] }}
+            relevant · {{ e.confidence }}
           </span>
           {% else %}
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-            irrelevant · {{ e.confidence[:3] }}
+            irrelevant · {{ e.confidence }}
           </span>
           {% endif %}
         </td>

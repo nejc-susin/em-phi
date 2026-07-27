@@ -105,15 +105,15 @@ def log_cmd(
         return
 
     # Header
-    click.echo(f"{'Date':<17}  {'Sender':<35}  {'Subject':<40}  {'Verdict':<16}  Action")
-    click.echo("-" * 120)
+    click.echo(f"{'Date':<17}  {'Sender':<35}  {'Subject':<40}  {'Verdict':<20}  Action")
+    click.echo("-" * 124)
 
     for e in entries:
         date = e.processed_at[:16]  # "2026-05-01 08:32"
         sender_col = e.sender[:35]
         subject_col = (e.subject[:37] + "...") if len(e.subject) > 40 else e.subject
-        verdict_col = f"{e.verdict} ({e.confidence[:3]})"
-        click.echo(f"{date:<17}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<16}  {e.action_taken}")
+        verdict_col = f"{e.verdict} ({e.confidence})"
+        click.echo(f"{date:<17}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<20}  {e.action_taken}")
 
     totals = log.count(rule_email=rule, days=days, verdict=verdict, action=action_taken, search=search)
     click.echo()
