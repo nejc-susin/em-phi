@@ -142,7 +142,7 @@ def _process_rule(
         if not dry_run:
             log.record(
                 message_id=msg_id,
-                sender=rule.email[0],
+                sender=email.sender,
                 subject=email.subject,
                 received_at=email.received_at,
                 verdict=verdict,

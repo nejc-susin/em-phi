@@ -132,6 +132,27 @@ def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_v
     assert len(log.query(limit=100)) == 1
 
 
+def test_decision_log_query_offset_pages_through_results(tmp_db: Path, relevant_email, relevant_verdict) -> None:
+    log = DecisionLog(tmp_db)
+    for i in range(3):
+        log.record(
+            message_id=f"msg{i}",
+            sender=relevant_email.sender,
+            subject=f"Subject {i}",
+            received_at=relevant_email.received_at,
+            verdict=relevant_verdict,
+            action_taken="label",
+        )
+
+    page1 = log.query(limit=2, offset=0)
+    page2 = log.query(limit=2, offset=2)
+    assert len(page1) == 2
+    assert len(page2) == 1
+    seen_ids = {e.message_id for e in page1} | {e.message_id for e in page2}
+    assert seen_ids == {"msg0", "msg1", "msg2"}
+    assert {e.message_id for e in page1}.isdisjoint({e.message_id for e in page2})
+
+
 def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelevant_email,
                                            relevant_verdict, irrelevant_verdict) -> None:
     log = DecisionLog(tmp_db)
@@ -154,6 +175,82 @@ def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelev
     results = log.query(rule_email="a@example.com")
     assert len(results) == 1
     assert results[0].sender == "a@example.com"
+
+
+def test_decision_log_count_respects_filters(tmp_db: Path, relevant_email, irrelevant_email,
+                                              relevant_verdict, irrelevant_verdict) -> None:
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender="a@example.com",
+        subject=relevant_email.subject,
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="label",
+    )
+    log.record(
+        message_id=irrelevant_email.message_id,
+        sender="b@example.com",
+        subject=irrelevant_email.subject,
+        received_at=irrelevant_email.received_at,
+        verdict=irrelevant_verdict,
+        action_taken="label",
+    )
+
+    assert log.count() == {"relevant": 1, "irrelevant": 1}
+    assert log.count(rule_email="a@example.com") == {"relevant": 1}
+    assert log.count(rule_email="b@example.com") == {"irrelevant": 1}
+
+
+def test_decision_log_query_filter_by_verdict_action_and_search(
+    tmp_db: Path, relevant_email, irrelevant_email, relevant_verdict, irrelevant_verdict,
+) -> None:
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender=relevant_email.sender,
+        subject=relevant_email.subject,  # "Python 3.14 released"
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="label",
+    )
+    log.record(
+        message_id=irrelevant_email.message_id,
+        sender=irrelevant_email.sender,
+        subject=irrelevant_email.subject,  # "Join our community meetup"
+        received_at=irrelevant_email.received_at,
+        verdict=irrelevant_verdict,
+        action_taken="archive",
+    )
+
+    assert [e.message_id for e in log.query(verdict="relevant")] == ["msg001"]
+    assert [e.message_id for e in log.query(action="archive")] == ["msg002"]
+    assert [e.message_id for e in log.query(search="python")] == ["msg001"]
+    assert [e.message_id for e in log.query(search="meetup")] == ["msg002"]
+    assert log.query(search="nonexistent") == []
+    assert log.count(verdict="relevant") == {"relevant": 1}
+    assert log.count(action="archive") == {"irrelevant": 1}
+
+
+def test_decision_log_query_filter_matches_display_name_sender(
+    tmp_db: Path, relevant_email, relevant_verdict,
+) -> None:
+    """Real 'From' headers include a display name; filtering by the bare
+    configured address must still match."""
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender="Example Newsletter <newsletter@example.com>",
+        subject=relevant_email.subject,
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="label",
+    )
+
+    results = log.query(rule_email="newsletter@example.com")
+    assert len(results) == 1
+    results = log.query(rule_email="NEWSLETTER@EXAMPLE.COM")
+    assert len(results) == 1
 
 
 # ------------------------------------------------------------------

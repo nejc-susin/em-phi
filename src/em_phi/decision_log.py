@@ -5,6 +5,7 @@ import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Iterator
 
@@ -28,6 +29,16 @@ CREATE TABLE IF NOT EXISTS decisions (
 CREATE INDEX IF NOT EXISTS idx_sender       ON decisions(sender);
 CREATE INDEX IF NOT EXISTS idx_processed_at ON decisions(processed_at);
 """
+
+
+def _address_of(raw: str) -> str:
+    """Extract the bare address from a "From" header value (e.g. 'Name <a@b.com>' -> 'a@b.com')."""
+    return parseaddr(raw)[1].lower()
+
+
+def _like_escape(term: str) -> str:
+    """Escape SQLite LIKE wildcards so a literal % or _ in search text isn't treated as a wildcard."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 @dataclass
@@ -58,6 +69,7 @@ class DecisionLog:
     def _connect(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
+        conn.create_function("addr_of", 1, _address_of)
         try:
             yield conn
             conn.commit()
@@ -105,38 +117,81 @@ class DecisionLog:
                 ),
             )
 
+    @staticmethod
+    def _conditions(
+        *,
+        rule_email: str | None,
+        days: int | None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
+    ) -> tuple[list[str], list[object]]:
+        conditions: list[str] = []
+        params: list[object] = []
+
+        if rule_email:
+            conditions.append("addr_of(sender) = ?")
+            params.append(rule_email.lower())
+        if days is not None:
+            since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
+            conditions.append("processed_at >= ?")
+            params.append(since)
+        if verdict:
+            conditions.append("verdict = ?")
+            params.append(verdict)
+        if action:
+            conditions.append("action_taken = ?")
+            params.append(action)
+        if search:
+            conditions.append("(subject LIKE ? ESCAPE '\\' OR reason LIKE ? ESCAPE '\\')")
+            pattern = f"%{_like_escape(search)}%"
+            params.append(pattern)
+            params.append(pattern)
+
+        return conditions, params
+
     def query(
         self,
         *,
         rule_email: str | None = None,
         days: int | None = None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[LogEntry]:
-        conditions: list[str] = []
-        params: list[object] = []
-
-        if rule_email:
-            conditions.append("sender = ?")
-            params.append(rule_email)
-        if days is not None:
-            since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
-            conditions.append("processed_at >= ?")
-            params.append(since)
-
+        conditions, params = self._conditions(
+            rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+        )
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
-        params.append(limit)
+        params = params + [limit, offset]
 
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC LIMIT ?",
+                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
 
         return [LogEntry(**dict(row)) for row in rows]
 
-    def count(self) -> dict[str, int]:
+    def count(
+        self,
+        *,
+        rule_email: str | None = None,
+        days: int | None = None,
+        verdict: str | None = None,
+        action: str | None = None,
+        search: str | None = None,
+    ) -> dict[str, int]:
+        conditions, params = self._conditions(
+            rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+        )
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT verdict, COUNT(*) as n FROM decisions GROUP BY verdict"
+                f"SELECT verdict, COUNT(*) as n FROM decisions {where} GROUP BY verdict",
+                params,
             ).fetchall()
         return {row["verdict"]: row["n"] for row in rows}
