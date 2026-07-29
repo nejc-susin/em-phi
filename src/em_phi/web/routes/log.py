@@ -9,8 +9,19 @@ from em_phi.web.state import AppState
 
 _MIN_LIMIT = 1
 _MAX_LIMIT = 500
+_DEFAULT_LIMIT = 50
 _VALID_VERDICTS = {"relevant", "irrelevant"}
 _VALID_ACTIONS = {"label", "archive", "keep"}
+
+
+def _parse_int(raw: str | None) -> int | None:
+    """Parse a query-string int, treating blank/invalid input as absent rather than erroring."""
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
@@ -20,19 +31,21 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     async def log_page(
         request: Request,
         rule: str | None = None,
-        days: int | None = None,
+        days: str | None = None,
         verdict: str | None = None,
         action: str | None = None,
         search: str | None = None,
-        limit: int = 50,
-        offset: int = 0,
+        limit: str | None = None,
+        offset: str | None = None,
     ):
-        # Clamp/ignore rather than reject: this is a browsed page, not an API
-        # — a stray query string shouldn't surface a raw validation error.
-        limit = max(_MIN_LIMIT, min(limit, _MAX_LIMIT))
-        offset = max(0, offset)
-        if days is not None and days < 1:
-            days = None
+        # Query params are taken as raw strings and parsed by hand — this is a
+        # browsed page, not an API, so a blank or malformed field (e.g. the
+        # Days box left empty) should be ignored, not surface a raw
+        # validation error from FastAPI's own int coercion.
+        parsed_days = _parse_int(days)
+        days = parsed_days if (parsed_days is not None and parsed_days >= 1) else None
+        limit = max(_MIN_LIMIT, min(_parse_int(limit) or _DEFAULT_LIMIT, _MAX_LIMIT))
+        offset = max(0, _parse_int(offset) or 0)
         if verdict not in _VALID_VERDICTS:
             verdict = None
         if action not in _VALID_ACTIONS:

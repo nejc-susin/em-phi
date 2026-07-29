@@ -110,6 +110,86 @@ def test_decision_log_roundtrip(tmp_db: Path, relevant_email, relevant_verdict) 
     assert entries[0].confidence == "high"
 
 
+def test_decision_log_records_inbox_action(tmp_db: Path, relevant_email, relevant_verdict) -> None:
+    """action_taken='inbox' (rule.action == 'inbox') must not be silently
+    dropped — record() uses INSERT OR IGNORE, which swallows CHECK
+    constraint violations without raising, so a stale allow-list here is a
+    silent-data-loss bug, not a loud one."""
+    log = DecisionLog(tmp_db)
+    log.record(
+        message_id=relevant_email.message_id,
+        sender=relevant_email.sender,
+        subject=relevant_email.subject,
+        received_at=relevant_email.received_at,
+        verdict=relevant_verdict,
+        action_taken="inbox",
+    )
+
+    assert log.is_processed(relevant_email.message_id)
+    entries = log.query()
+    assert len(entries) == 1
+    assert entries[0].action_taken == "inbox"
+
+
+def test_decision_log_migrates_old_action_taken_check(tmp_db: Path) -> None:
+    """Simulates opening a pre-existing decisions.db created before the
+    action_taken CHECK constraint was dropped: data must survive, indexes
+    must be recreated, and 'inbox' must work afterward."""
+    import sqlite3
+
+    old_schema = """
+    CREATE TABLE decisions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id    TEXT UNIQUE NOT NULL,
+        sender        TEXT NOT NULL,
+        subject       TEXT NOT NULL,
+        received_at   TEXT NOT NULL,
+        verdict       TEXT NOT NULL CHECK(verdict IN ('relevant', 'irrelevant')),
+        confidence    TEXT NOT NULL CHECK(confidence IN ('high', 'medium', 'low')),
+        reason        TEXT NOT NULL,
+        action_taken  TEXT NOT NULL CHECK(action_taken IN ('label', 'archive', 'keep')),
+        processed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX idx_sender       ON decisions(sender);
+    CREATE INDEX idx_processed_at ON decisions(processed_at);
+    """
+    conn = sqlite3.connect(tmp_db)
+    conn.executescript(old_schema)
+    conn.execute(
+        "INSERT INTO decisions (message_id, sender, subject, received_at, verdict, confidence, reason, action_taken)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        ("old-msg", "newsletter@example.com", "Pre-existing entry", "2026-01-01T00:00:00+00:00",
+         "relevant", "high", "was fine", "label"),
+    )
+    conn.commit()
+    conn.close()
+
+    log = DecisionLog(tmp_db)  # should auto-migrate on open
+
+    entries = log.query(limit=100)
+    assert len(entries) == 1
+    assert entries[0].message_id == "old-msg"
+
+    # The migration must not have dropped the indexes it rebuilds.
+    conn = sqlite3.connect(tmp_db)
+    index_names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()}
+    conn.close()
+    assert "idx_sender" in index_names
+    assert "idx_processed_at" in index_names
+
+    # And the actual bug is fixed: 'inbox' no longer gets silently dropped.
+    log.record(
+        message_id="new-msg",
+        sender="newsletter@example.com",
+        subject="New inbox-action entry",
+        received_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        verdict=Verdict(verdict="relevant", confidence="high", reason="matches interests"),
+        action_taken="inbox",
+    )
+    assert log.is_processed("new-msg")
+    assert len(log.query(limit=100)) == 2
+
+
 def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_verdict) -> None:
     log = DecisionLog(tmp_db)
     log.record(
