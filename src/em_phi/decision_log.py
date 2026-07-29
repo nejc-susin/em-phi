@@ -23,12 +23,21 @@ CREATE TABLE IF NOT EXISTS decisions (
     verdict       TEXT NOT NULL CHECK(verdict IN ('relevant', 'irrelevant')),
     confidence    TEXT NOT NULL CHECK(confidence IN ('high', 'medium', 'low')),
     reason        TEXT NOT NULL,
-    action_taken  TEXT NOT NULL CHECK(action_taken IN ('label', 'archive', 'keep')),
+    action_taken  TEXT NOT NULL,
     processed_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sender       ON decisions(sender);
 CREATE INDEX IF NOT EXISTS idx_processed_at ON decisions(processed_at);
 """
+
+# action_taken has no CHECK constraint: it comes from our own apply_verdict()
+# (not external input), and record() uses INSERT OR IGNORE — a CHECK mismatch
+# there doesn't raise, it silently drops the row. That bit us once already
+# ("inbox" wasn't in the old allowed list) and would happen again for any
+# future rule.action value we forget to add to a hardcoded list. Trust the
+# internal caller instead of re-validating an invariant only our own code
+# controls.
+_OLD_ACTION_TAKEN_CHECK_MARKER = "CHECK(action_taken"
 
 
 def _address_of(raw: str) -> str:
@@ -62,8 +71,30 @@ class DecisionLog:
 
     def _init_db(self) -> None:
         with self._connect() as conn:
-            conn.executescript(_SCHEMA)
+            if self._needs_action_taken_migration(conn):
+                logger.info("DecisionLog: migrating 'decisions' table to drop the action_taken CHECK constraint")
+                conn.executescript("ALTER TABLE decisions RENAME TO decisions_pre_action_taken_migration;")
+                conn.executescript("DROP INDEX IF EXISTS idx_sender; DROP INDEX IF EXISTS idx_processed_at;")
+                conn.executescript(_SCHEMA)  # recreates 'decisions' (new schema) + its indexes
+                conn.executescript("""
+                    INSERT INTO decisions
+                        (id, message_id, sender, subject, received_at,
+                         verdict, confidence, reason, action_taken, processed_at)
+                    SELECT id, message_id, sender, subject, received_at,
+                           verdict, confidence, reason, action_taken, processed_at
+                    FROM decisions_pre_action_taken_migration;
+                    DROP TABLE decisions_pre_action_taken_migration;
+                """)
+            else:
+                conn.executescript(_SCHEMA)
         logger.debug("DecisionLog: initialized at %s", self.path)
+
+    @staticmethod
+    def _needs_action_taken_migration(conn: sqlite3.Connection) -> bool:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='decisions'"
+        ).fetchone()
+        return bool(row and row[0] and _OLD_ACTION_TAKEN_CHECK_MARKER in row[0])
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
