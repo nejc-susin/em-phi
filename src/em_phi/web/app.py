@@ -8,6 +8,7 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from em_phi.config import AppConfig
@@ -17,6 +18,7 @@ from em_phi.web.state import AppState, LastRun
 logger = logging.getLogger(__name__)
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app(config: AppConfig, config_path: Path) -> FastAPI:
@@ -35,6 +37,7 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
         scheduler.shutdown()
 
     app = FastAPI(title="em-phi", lifespan=lifespan)
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     # ------------------------------------------------------------------ auth
 
@@ -44,7 +47,10 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
 
     @app.middleware("http")
     async def auth_middleware(request: Request, call_next):
-        if request.url.path in PUBLIC_PATHS:
+        # Static assets (vendored JS, no external CDN calls) must load
+        # before the user has a valid auth cookie — the login page itself
+        # needs them.
+        if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/static/"):
             return await call_next(request)
         token = request.cookies.get(AUTH_COOKIE)
         if token != state.config.web.auth_token:  # type: ignore[union-attr]

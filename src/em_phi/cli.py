@@ -308,6 +308,8 @@ def serve_cmd(ctx: click.Context) -> None:
             "Example:\n  web:\n    host: 0.0.0.0\n    port: 8080\n    auth_token: your-secret-token"
         )
 
+    _configure_logging(config)
+
     import uvicorn
     from em_phi.web.app import create_app
 
