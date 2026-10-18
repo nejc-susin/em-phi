@@ -6,7 +6,7 @@ import click
 
 from em_phi.actions import ACTIONS_TAKEN
 from em_phi.classifiers.base import Classifier
-from em_phi.config import AppConfig, ConfigError, RuleConfig, load_config
+from em_phi.config import AppConfig, ConfigError, RuleConfig, is_weak_auth_token, load_config
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
 from em_phi.processor import RuleResult, RunSummary, process_all
@@ -63,7 +63,7 @@ def check_config(ctx: click.Context) -> None:
 
 
 @cli.command("log")
-@click.option("--rule", default=None, help="Filter by rule email address.")
+@click.option("--rule", default=None, help="Filter by rule name or sender address.")
 @click.option("--days", default=None, type=click.IntRange(min=1), help="Limit to decisions from the last N days.")
 @click.option("--verdict", default=None, type=click.Choice(["relevant", "irrelevant"]), help="Filter by verdict.")
 @click.option("--action", "action_taken", default=None, type=click.Choice(list(ACTIONS_TAKEN)),
@@ -97,9 +97,14 @@ def log_cmd(
         raise click.ClickException(f"Decision log not found: {db_path}\nRun `em-phi run` first.")
 
     log = DecisionLog(db_path)
+    log.backfill_rule_names(config.rules)
+
+    # --rule accepts a rule name or a sender address; a name wins if both could apply.
+    rule_name = rule if rule and any(r.name == rule for r in config.rules) else None
+    rule_email = None if rule_name else rule
     entries = log.query(
-        rule_email=rule, days=days, verdict=verdict, action=action_taken, search=search,
-        limit=limit, offset=offset,
+        rule_email=rule_email, rule_name=rule_name, days=days, verdict=verdict, action=action_taken,
+        search=search, limit=limit, offset=offset,
     )
 
     if not entries:
@@ -117,7 +122,10 @@ def log_cmd(
         verdict_col = f"{e.verdict} ({e.confidence})"
         click.echo(f"{date:<21}  {sender_col:<35}  {subject_col:<40}  {verdict_col:<20}  {e.action_taken}")
 
-    totals = log.count(rule_email=rule, days=days, verdict=verdict, action=action_taken, search=search)
+    totals = log.count(
+        rule_email=rule_email, rule_name=rule_name, days=days, verdict=verdict, action=action_taken,
+        search=search,
+    )
     click.echo()
     total = sum(totals.values())
     relevant = totals.get("relevant", 0)
@@ -293,6 +301,13 @@ def serve_cmd(ctx: click.Context) -> None:
         raise click.ClickException(
             "No 'web:' block found in config. Add one to use 'em-phi serve'.\n\n"
             "Example:\n  web:\n    host: 0.0.0.0\n    port: 8080\n    auth_token: your-secret-token"
+        )
+
+    if is_weak_auth_token(config.web.auth_token):
+        click.echo(
+            "WARNING: web.auth_token is the default or too short — anyone who can reach this port "
+            "can run em-phi and edit your config. Set a long random token.",
+            err=True,
         )
 
     _configure_logging(config)

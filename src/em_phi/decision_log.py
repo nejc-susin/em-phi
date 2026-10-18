@@ -9,6 +9,7 @@ from email.utils import parseaddr
 from pathlib import Path
 from typing import Iterator
 
+from em_phi.config import RuleConfig
 from em_phi.models import Verdict
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS decisions (
     confidence    TEXT NOT NULL CHECK(confidence IN ('high', 'medium', 'low')),
     reason        TEXT NOT NULL,
     action_taken  TEXT NOT NULL,
+    rule_name     TEXT,
     processed_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sender       ON decisions(sender);
@@ -39,10 +41,26 @@ CREATE INDEX IF NOT EXISTS idx_processed_at ON decisions(processed_at);
 # controls.
 _OLD_ACTION_TAKEN_CHECK_MARKER = "CHECK(action_taken"
 
+# idx_rule_name lives outside _SCHEMA: on a database created before rule_name
+# existed, the column has to be added before an index on it can be created.
+_RULE_NAME_INDEX = "CREATE INDEX IF NOT EXISTS idx_rule_name ON decisions(rule_name);"
+
 
 def _address_of(raw: str) -> str:
     """Extract the bare address from a "From" header value (e.g. 'Name <a@b.com>' -> 'a@b.com')."""
     return parseaddr(raw)[1].lower()
+
+
+def _rule_matches(address: str, patterns: list[str]) -> bool:
+    """Mirror the Gmail provider's sender matching: full address, or bare domain."""
+    for pattern in patterns:
+        pattern = pattern.lower()
+        if "@" in pattern:
+            if address == pattern:
+                return True
+        elif address.endswith("@" + pattern):
+            return True
+    return False
 
 
 def _like_escape(term: str) -> str:
@@ -61,6 +79,7 @@ class LogEntry:
     confidence: str
     reason: str
     action_taken: str
+    rule_name: str | None
     processed_at: str
 
 
@@ -96,6 +115,7 @@ class DecisionLog:
                 )
             else:
                 conn.executescript(_SCHEMA)
+            self._ensure_rule_name_column(conn)
         logger.debug("DecisionLog: initialized at %s", self.path)
 
     @staticmethod
@@ -104,6 +124,19 @@ class DecisionLog:
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='decisions'"
         ).fetchone()
         return bool(row and row[0] and _OLD_ACTION_TAKEN_CHECK_MARKER in row[0])
+
+    @staticmethod
+    def _ensure_rule_name_column(conn: sqlite3.Connection) -> None:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(decisions)")}
+        if "rule_name" not in columns:
+            logger.info("DecisionLog: adding 'rule_name' column to 'decisions'")
+            try:
+                conn.execute("ALTER TABLE decisions ADD COLUMN rule_name TEXT")
+            except sqlite3.OperationalError as exc:
+                # Another process (CLI run vs. web server) added it between our check and here.
+                if "duplicate column" not in str(exc).lower():
+                    raise
+        conn.execute(_RULE_NAME_INDEX)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -135,6 +168,7 @@ class DecisionLog:
         received_at: datetime,
         verdict: Verdict,
         action_taken: str,
+        rule_name: str,
     ) -> None:
         logger.debug("DecisionLog: recording %s (verdict=%s action=%s)", message_id, verdict.verdict, action_taken)
         with self._connect() as conn:
@@ -142,8 +176,8 @@ class DecisionLog:
                 """
                 INSERT OR IGNORE INTO decisions
                     (message_id, sender, subject, received_at,
-                     verdict, confidence, reason, action_taken)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     verdict, confidence, reason, action_taken, rule_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     message_id,
@@ -154,8 +188,29 @@ class DecisionLog:
                     verdict.confidence,
                     verdict.reason,
                     action_taken,
+                    rule_name,
                 ),
             )
+
+    def backfill_rule_names(self, rules: list[RuleConfig]) -> int:
+        """Fill in rule_name for rows logged before it was recorded.
+
+        Each NULL row gets the first rule (in config order) whose patterns match
+        its sender; rows matching no rule stay NULL. Returns the rows updated.
+        """
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, sender FROM decisions WHERE rule_name IS NULL").fetchall()
+            updates: list[tuple[str, int]] = []
+            for row in rows:
+                address = _address_of(row["sender"])
+                for rule in rules:
+                    if _rule_matches(address, rule.email):
+                        updates.append((rule.name, row["id"]))
+                        break
+            conn.executemany("UPDATE decisions SET rule_name = ? WHERE id = ?", updates)
+        if updates:
+            logger.info("DecisionLog: backfilled rule_name on %d rows", len(updates))
+        return len(updates)
 
     @staticmethod
     def _conditions(
@@ -165,6 +220,7 @@ class DecisionLog:
         verdict: str | None = None,
         action: str | None = None,
         search: str | None = None,
+        rule_name: str | None = None,
     ) -> tuple[list[str], list[object]]:
         conditions: list[str] = []
         params: list[object] = []
@@ -177,6 +233,9 @@ class DecisionLog:
                 # Bare domain rule: matches every sender at that domain.
                 conditions.append("addr_of(sender) LIKE ? ESCAPE '\\'")
                 params.append("%@" + _like_escape(rule_email.lower()))
+        if rule_name:
+            conditions.append("rule_name = ?")
+            params.append(rule_name)
         if days is not None:
             # Same format as SQLite's datetime('now') so the string compare is correct.
             since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
@@ -204,11 +263,13 @@ class DecisionLog:
         verdict: str | None = None,
         action: str | None = None,
         search: str | None = None,
+        rule_name: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[LogEntry]:
         conditions, params = self._conditions(
             rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+            rule_name=rule_name,
         )
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         params = params + [limit, offset]
@@ -229,9 +290,11 @@ class DecisionLog:
         verdict: str | None = None,
         action: str | None = None,
         search: str | None = None,
+        rule_name: str | None = None,
     ) -> dict[str, int]:
         conditions, params = self._conditions(
             rule_email=rule_email, days=days, verdict=verdict, action=action, search=search,
+            rule_name=rule_name,
         )
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

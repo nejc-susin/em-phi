@@ -137,6 +137,14 @@ class WebConfig(BaseModel):
     auth_token: str  # required — no default; em-phi serve fails fast if absent
 
 
+_MIN_AUTH_TOKEN_LENGTH = 12
+
+
+def is_weak_auth_token(token: str) -> bool:
+    """True for the example config's placeholder token or anything too short to resist guessing."""
+    return token == "change-me" or len(token) < _MIN_AUTH_TOKEN_LENGTH
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(frozen=False, extra="forbid")
 

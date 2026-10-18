@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from em_phi.config import AppConfig, RuleConfig, load_config
+from em_phi.decision_log import DecisionLog
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -196,6 +197,12 @@ def _save_and_reload(
     state.reload_config(reloaded)
 
     scheduler.reschedule(reloaded, scheduled_run)
+    # Newly added rules claim the old rows from their senders.
+    try:
+        if reloaded.decision_log.path.exists():  # nothing to backfill before the first run
+            DecisionLog(reloaded.decision_log.path).backfill_rule_names(reloaded.rules)
+    except Exception as exc:
+        logger.warning("Could not backfill rule names in the decision log: %s", exc)
     logger.info("Config saved and reloaded: %s", state.config_path)
 
 

@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 
 from em_phi.actions import ACTIONS_TAKEN
 from em_phi.decision_log import DecisionLog
-from em_phi.web.routes._helpers import parse_int, rule_options
+from em_phi.web.routes._helpers import parse_int, rule_name_options
 from em_phi.web.state import AppState
 
 _MIN_LIMIT = 1
@@ -45,11 +45,11 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
 
         log = DecisionLog(state.config.decision_log.path)
         entries = log.query(
-            rule_email=rule, days=days, verdict=verdict, action=action, search=search,
+            rule_name=rule, days=days, verdict=verdict, action=action, search=search,
             limit=limit, offset=offset,
         )
-        counts = log.count(rule_email=rule, days=days, verdict=verdict, action=action, search=search)
-        options = rule_options(state.config)
+        counts = log.count(rule_name=rule, days=days, verdict=verdict, action=action, search=search)
+        options = rule_name_options(state.config)
         total = sum(counts.values())
 
         return templates.TemplateResponse(request, "log.html", {

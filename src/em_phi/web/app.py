@@ -12,7 +12,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from em_phi.config import AppConfig
+from em_phi.config import AppConfig, is_weak_auth_token
+from em_phi.decision_log import DecisionLog
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -44,6 +45,8 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     state = AppState(config, config_path)
     scheduler = EmPhiScheduler()
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+    # A callable (not a value) so the banner follows config reloads.
+    templates.env.globals["weak_auth_token"] = lambda: is_weak_auth_token(state.config.web.auth_token)  # type: ignore[union-attr]
 
     async def scheduled_run() -> None:
         from em_phi.web.routes.run import execute_run
@@ -51,6 +54,10 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        try:
+            DecisionLog(state.config.decision_log.path).backfill_rule_names(state.config.rules)
+        except Exception as exc:
+            logger.warning("Could not backfill rule names in the decision log: %s", exc)
         scheduler.start(state.config, scheduled_run)
         yield
         scheduler.shutdown()

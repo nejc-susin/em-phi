@@ -19,3 +19,11 @@ def rule_options(config: AppConfig) -> list[tuple[str, str]]:
         {(e, r.name) for r in config.rules for e in r.email},
         key=lambda pair: pair[0],
     )
+
+
+def rule_name_options(config: AppConfig) -> list[tuple[str, str]]:
+    """(rule name, comma-joined addresses) pairs in config order, one per distinct name."""
+    options: dict[str, str] = {}
+    for r in config.rules:
+        options.setdefault(r.name, ", ".join(r.email))
+    return list(options.items())

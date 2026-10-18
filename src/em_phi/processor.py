@@ -157,6 +157,7 @@ def _process_rule(
                     received_at=email.received_at,
                     verdict=verdict,
                     action_taken=action,
+                    rule_name=rule.name,
                 )
             except Exception as exc:
                 # The Gmail action was already applied, so the next run will

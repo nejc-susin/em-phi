@@ -88,3 +88,111 @@ def test_run_dry_run_output(tmp_path: Path, relevant_email, irrelevant_email,
     assert lines[6] == ""
     assert lines[7] == "Run complete: 2 processed, 1 relevant, 1 irrelevant, 0 skipped"
     assert len(lines) == 8
+
+
+def _write_multi_address_config(tmp_path: Path, auth_token: str = "a-long-enough-secret") -> Path:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(f"""
+email_provider:
+  credentials_file: credentials.json
+  token_file: token.json
+decision_log:
+  path: decisions.db
+web:
+  auth_token: {auth_token}
+rules:
+  - email: [a@x.com, b@x.com]
+    name: Python Weekly
+    interests: Python releases
+  - email: c@y.com
+    name: Other News
+    interests: Other things
+""")
+    return config_path
+
+
+def _record(log, message_id: str, sender: str, rule_name: str) -> None:
+    from datetime import datetime, timezone
+
+    from em_phi.models import Verdict
+
+    log.record(
+        message_id=message_id,
+        sender=sender,
+        subject=f"Subject {message_id}",
+        received_at=datetime(2026, 5, 1, tzinfo=timezone.utc),
+        verdict=Verdict(verdict="relevant", confidence="high", reason="r"),
+        action_taken="label",
+        rule_name=rule_name,
+    )
+
+
+def test_log_rule_option_accepts_rule_name_or_address(tmp_path: Path) -> None:
+    from em_phi.decision_log import DecisionLog
+
+    config_path = _write_multi_address_config(tmp_path)
+    log = DecisionLog(tmp_path / "decisions.db")
+    _record(log, "m1", "a@x.com", "Python Weekly")
+    _record(log, "m2", "b@x.com", "Python Weekly")
+    _record(log, "m3", "c@y.com", "Other News")
+    runner = CliRunner()
+
+    by_name = runner.invoke(cli, ["--config", str(config_path), "log", "--rule", "Python Weekly"])
+    assert by_name.exit_code == 0, by_name.output
+    assert "Subject m1" in by_name.output and "Subject m2" in by_name.output
+    assert "Subject m3" not in by_name.output
+    assert "Matching filter: 2" in by_name.output
+
+    by_address = runner.invoke(cli, ["--config", str(config_path), "log", "--rule", "c@y.com"])
+    assert by_address.exit_code == 0, by_address.output
+    assert "Subject m3" in by_address.output
+    assert "Subject m1" not in by_address.output
+
+
+def test_log_backfills_rule_names_for_old_rows(tmp_path: Path) -> None:
+    import sqlite3
+
+    from em_phi.decision_log import DecisionLog
+
+    config_path = _write_multi_address_config(tmp_path)
+    log = DecisionLog(tmp_path / "decisions.db")
+    _record(log, "m1", "b@x.com", "Python Weekly")
+    conn = sqlite3.connect(tmp_path / "decisions.db")
+    conn.execute("UPDATE decisions SET rule_name = NULL")
+    conn.commit()
+    conn.close()
+
+    result = CliRunner().invoke(cli, ["--config", str(config_path), "log", "--rule", "Python Weekly"])
+
+    assert result.exit_code == 0, result.output
+    assert "Subject m1" in result.output
+
+
+def test_serve_warns_about_default_auth_token(tmp_path: Path) -> None:
+    config_path = _write_multi_address_config(tmp_path, auth_token="change-me")
+
+    with patch("em_phi.cli._configure_logging"), patch("uvicorn.run") as mock_uvicorn_run:
+        result = CliRunner().invoke(cli, ["--config", str(config_path), "serve"])
+
+    assert result.exit_code == 0, result.output
+    assert "WARNING: web.auth_token is the default or too short" in result.output
+    mock_uvicorn_run.assert_called_once()  # a warning, not a refusal
+
+
+def test_serve_warns_about_short_auth_token(tmp_path: Path) -> None:
+    config_path = _write_multi_address_config(tmp_path, auth_token="short")
+
+    with patch("em_phi.cli._configure_logging"), patch("uvicorn.run"):
+        result = CliRunner().invoke(cli, ["--config", str(config_path), "serve"])
+
+    assert "WARNING: web.auth_token" in result.output
+
+
+def test_serve_is_quiet_about_a_strong_auth_token(tmp_path: Path) -> None:
+    config_path = _write_multi_address_config(tmp_path)
+
+    with patch("em_phi.cli._configure_logging"), patch("uvicorn.run"):
+        result = CliRunner().invoke(cli, ["--config", str(config_path), "serve"])
+
+    assert result.exit_code == 0, result.output
+    assert "WARNING" not in result.output

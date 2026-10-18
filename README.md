@@ -77,7 +77,7 @@ To run em-phi always-on with a dashboard and built-in scheduler, see [Web UI](#w
 | `em-phi run --rule EMAIL` | Process only one rule |
 | `em-phi check-config` | Validate config file and display parsed settings |
 | `em-phi log` | Show recent decisions (last 20) |
-| `em-phi log --rule EMAIL` | Filter log by rule email address |
+| `em-phi log --rule NAME\|EMAIL` | Filter log by rule name or sender address |
 | `em-phi log --days N` | Show decisions from the last N days |
 | `em-phi log --limit N` | Show N entries (default: 20) |
 | `em-phi log --offset N` | Skip the first N matching entries (for paging) |

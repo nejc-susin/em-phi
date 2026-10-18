@@ -97,6 +97,7 @@ def test_decision_log_roundtrip(tmp_db: Path, relevant_email, relevant_verdict) 
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
 
     assert log.is_processed(relevant_email.message_id)
@@ -119,6 +120,7 @@ def test_decision_log_records_inbox_action(tmp_db: Path, relevant_email, relevan
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="inbox",
+        rule_name="Example Newsletter",
     )
 
     assert log.is_processed(relevant_email.message_id)
@@ -181,6 +183,7 @@ def test_decision_log_migrates_old_action_taken_check(tmp_db: Path) -> None:
         received_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
         verdict=Verdict(verdict="relevant", confidence="high", reason="matches interests"),
         action_taken="inbox",
+        rule_name="Example Newsletter",
     )
     assert log.is_processed("new-msg")
     assert len(log.query(limit=100)) == 2
@@ -195,6 +198,7 @@ def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_v
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     # Recording the same message_id again should not raise or duplicate
     log.record(
@@ -204,6 +208,7 @@ def test_decision_log_duplicate_ignored(tmp_db: Path, relevant_email, relevant_v
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     assert len(log.query(limit=100)) == 1
 
@@ -218,6 +223,7 @@ def test_decision_log_query_offset_pages_through_results(tmp_db: Path, relevant_
             received_at=relevant_email.received_at,
             verdict=relevant_verdict,
             action_taken="label",
+            rule_name="Example Newsletter",
         )
 
     page1 = log.query(limit=2, offset=0)
@@ -239,6 +245,7 @@ def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelev
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     log.record(
         message_id=irrelevant_email.message_id,
@@ -247,6 +254,7 @@ def test_decision_log_query_filter_by_rule(tmp_db: Path, relevant_email, irrelev
         received_at=irrelevant_email.received_at,
         verdict=irrelevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     results = log.query(rule_email="a@example.com")
     assert len(results) == 1
@@ -263,6 +271,7 @@ def test_decision_log_count_respects_filters(tmp_db: Path, relevant_email, irrel
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     log.record(
         message_id=irrelevant_email.message_id,
@@ -271,6 +280,7 @@ def test_decision_log_count_respects_filters(tmp_db: Path, relevant_email, irrel
         received_at=irrelevant_email.received_at,
         verdict=irrelevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
 
     assert log.count() == {"relevant": 1, "irrelevant": 1}
@@ -289,6 +299,7 @@ def test_decision_log_query_filter_by_verdict_action_and_search(
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
     log.record(
         message_id=irrelevant_email.message_id,
@@ -297,6 +308,7 @@ def test_decision_log_query_filter_by_verdict_action_and_search(
         received_at=irrelevant_email.received_at,
         verdict=irrelevant_verdict,
         action_taken="archive",
+        rule_name="Example Newsletter",
     )
 
     assert [e.message_id for e in log.query(verdict="relevant")] == ["msg001"]
@@ -321,6 +333,7 @@ def test_decision_log_query_filter_matches_display_name_sender(
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
 
     results = log.query(rule_email="newsletter@example.com")
@@ -387,6 +400,21 @@ def test_process_rule_basic(
     assert log.is_processed("msg002")
 
 
+def test_process_rule_logs_rule_name(
+    tmp_db, sample_config, sample_rule, relevant_email, relevant_verdict,
+) -> None:
+    _result, log, _provider, _seen = _make_rule_processor(
+        message_ids=["msg001"],
+        emails={"msg001": relevant_email},
+        verdicts={"msg001": relevant_verdict},
+        config=sample_config,
+        rule=sample_rule,
+        tmp_db=tmp_db,
+    )
+
+    assert [e.rule_name for e in log.query()] == [sample_rule.name]
+
+
 def test_process_rule_skips_already_processed(
     tmp_db, sample_config, sample_rule, relevant_email, relevant_verdict,
 ) -> None:
@@ -398,6 +426,7 @@ def test_process_rule_skips_already_processed(
         received_at=relevant_email.received_at,
         verdict=relevant_verdict,
         action_taken="label",
+        rule_name="Example Newsletter",
     )
 
     provider = MagicMock()

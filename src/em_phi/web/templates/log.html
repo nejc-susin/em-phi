@@ -16,8 +16,8 @@
     <label class="block text-xs font-medium text-gray-600 mb-1">Rule</label>
     <select name="rule" class="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
       <option value="">All</option>
-      {% for address, rule_name in rule_options %}
-      <option value="{{ address }}" {% if filter_rule == address %}selected{% endif %}>{{ address }} &mdash; {{ rule_name }}</option>
+      {% for name, addresses in rule_options %}
+      <option value="{{ name }}" {% if filter_rule == name %}selected{% endif %}>{{ name }} &mdash; {{ addresses }}</option>
       {% endfor %}
     </select>
   </div>
@@ -65,6 +65,7 @@
     <thead class="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
       <tr>
         <th class="px-4 py-3 text-left">Date</th>
+        <th class="px-4 py-3 text-left">Rule</th>
         <th class="px-4 py-3 text-left">Sender</th>
         <th class="px-4 py-3 text-left">Subject</th>
         <th class="px-4 py-3 text-left">Verdict</th>
@@ -76,6 +77,7 @@
       {% for e in entries %}
       <tr class="hover:bg-gray-50">
         <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ e.processed_at[:16] }} UTC</td>
+        <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{% if e.rule_name %}{{ e.rule_name }}{% else %}<span class="text-gray-400">&mdash;</span>{% endif %}</td>
         <td class="px-4 py-3 text-gray-700 max-w-[200px] truncate">{{ e.sender }}</td>
         <td class="px-4 py-3 text-gray-900 max-w-[280px] truncate">{{ e.subject }}</td>
         <td class="px-4 py-3 whitespace-nowrap">

@@ -21,6 +21,13 @@
         </form>
       </div>
     </nav>
+    {% if weak_auth_token() %}
+    <div class="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs">
+      <div class="max-w-6xl mx-auto px-4 py-2">
+        web.auth_token is the default or too short &mdash; anyone who can reach this port can run em-phi and edit your config. Set a long random token.
+      </div>
+    </div>
+    {% endif %}
     <main class="max-w-6xl mx-auto px-4 py-8">
       {% block content %}{% endblock %}
     </main>
