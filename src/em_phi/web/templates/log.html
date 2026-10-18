@@ -79,7 +79,10 @@
         <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{ e.processed_at[:16] }} UTC</td>
         <td class="px-4 py-3 text-gray-700 whitespace-nowrap">{% if e.rule_name %}{{ e.rule_name }}{% else %}<span class="text-gray-400">&mdash;</span>{% endif %}</td>
         <td class="px-4 py-3 text-gray-700 max-w-[200px] truncate">{{ e.sender }}</td>
-        <td class="px-4 py-3 text-gray-900 max-w-[280px] truncate">{{ e.subject }}</td>
+        <td class="px-4 py-3 text-gray-900 max-w-[280px] truncate">
+          {%- set url = gmail_url(e.message_id) -%}
+          {%- if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="hover:underline">{{ e.subject }}</a>{% else %}{{ e.subject }}{% endif -%}
+        </td>
         <td class="px-4 py-3 whitespace-nowrap">
           {% if e.verdict == 'relevant' %}
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">

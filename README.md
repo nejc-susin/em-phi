@@ -153,6 +153,7 @@ This is the label-driven workflow the author uses.
 2. Set `email_provider.fetch_label: EmPhi`. em-phi then only looks at mail carrying that label. The Gmail query becomes the rule's `from:` clause + `is:unread` + `label:EmPhi`. Rules still need to match the sender; the label just narrows what is fetched.
 3. Optional "gatekeeper" variant: also tick **Skip the Inbox (Archive it)** in the Gmail filter and use `action: inbox` on the rule. Newsletters never hit the inbox directly. em-phi moves only the relevant ones back in and leaves the rest archived with the irrelevant label.
 4. Start with `action: label` and check the Log for a few days before archiving.
+5. If you often read newsletters on your phone before em-phi runs, set `unread_only: false` (with `lookback_days`) so they are still labelled. Read emails are never moved back into the inbox by `action: inbox`; they only get the label.
 
 ```yaml
 email_provider:
@@ -180,6 +181,9 @@ email_provider:
   credentials_file: credentials.json   # path to OAuth2 client credentials
   token_file: token.json               # path to saved refresh token
   # fetch_label: "ToFilter"            # optional: only process emails carrying this Gmail label
+  # unread_only: false                 # optional: also process emails you already read (default: true)
+  # lookback_days: 3                   # with unread_only: false, how far back to look, 1-30 (default: 3)
+  # account: "0"                       # Gmail web account for log links: index (0, 1, ...) or email address
 
 llm:
   name: claude

@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from em_phi.config import AppConfig, is_weak_auth_token
 from em_phi.decision_log import DecisionLog
 from em_phi.run_log import RunLog
+from em_phi.web.routes._helpers import message_link
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -48,6 +49,7 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
     # A callable (not a value) so the banner follows config reloads.
     templates.env.globals["weak_auth_token"] = lambda: is_weak_auth_token(state.config.web.auth_token)  # type: ignore[union-attr]
+    templates.env.globals["gmail_url"] = lambda message_id: message_link(state.config, message_id)
 
     async def scheduled_run() -> None:
         from em_phi.web.routes.run import execute_run

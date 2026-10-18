@@ -113,6 +113,30 @@ def test_stream_emits_verdicts_and_done_then_records_the_run(
     assert run.started_at[:16] in page.text
 
 
+def test_stream_verdict_events_include_the_gmail_url(tmp_path, relevant_email, relevant_verdict) -> None:
+    client, _ = _make_client(tmp_path)
+
+    with _fake_backends([relevant_email], {"msg001": relevant_verdict}):
+        events = _events(client.get("/run/stream", params={"dry_run": "true"}).text)
+
+    assert events[0]["url"] == "https://mail.google.com/mail/u/0/#all/msg001"
+
+
+def test_stream_verdict_url_follows_account_and_is_null_for_other_providers(
+    tmp_path, relevant_email, relevant_verdict,
+) -> None:
+    for sub, provider, expected in (
+        ("a", EmailProviderConfig(token_file=tmp_path / "token.json", account="2"),
+         "https://mail.google.com/mail/u/2/#all/msg001"),
+        ("b", EmailProviderConfig(name="imap"), None),
+    ):
+        (tmp_path / sub).mkdir()
+        client, _ = _make_client(tmp_path / sub, email_provider=provider)
+        with _fake_backends([relevant_email], {"msg001": relevant_verdict}):
+            events = _events(client.get("/run/stream", params={"dry_run": "true"}).text)
+        assert events[0]["url"] == expected
+
+
 def test_stream_reports_worker_failure_as_error_event(tmp_path) -> None:
     client, state = _make_client(tmp_path)
 

@@ -17,6 +17,7 @@ from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
 from em_phi.processor import OnEmail, OnError, RunSummary, process_all
 from em_phi.run_log import RunLog, RunRecord, RunRecorder
+from em_phi.web.routes._helpers import message_link
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -129,6 +130,7 @@ async def _start_stream(
         emit({
             "type": "verdict",
             "subject": email.subject,
+            "url": message_link(state.config, email.message_id),
             "sender": email.sender,
             "verdict": verdict.verdict,
             "confidence": verdict.confidence,

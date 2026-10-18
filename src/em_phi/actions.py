@@ -24,6 +24,7 @@ def apply_verdict(
     action: label  — label only (relevant stays in inbox, irrelevant stays wherever it is)
     action: archive — label + archive irrelevant (relevant stays in inbox)
     action: inbox  — label + move relevant to inbox, label + archive irrelevant
+                     (already-read relevant mail is only labelled, not moved)
 
     In dry_run mode no Gmail API calls are made.
     """
@@ -33,6 +34,10 @@ def apply_verdict(
     else:
         label = labels.irrelevant
         action = "archive" if rule.action in ("archive", "inbox") else "label"
+
+    # Don't pull a message the user has already read back into the inbox.
+    if action == "inbox" and not email.unread:
+        action = "label"
 
     if dry_run:
         logger.debug("Actions: [DRY RUN] would label=%r action=%s on %s", label, action, email.message_id)

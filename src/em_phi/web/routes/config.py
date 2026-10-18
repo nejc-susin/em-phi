@@ -127,6 +127,11 @@ def router(
             )
             fetch_label = str(form.get("fetch_label", "")).strip() or None
             config.email_provider.fetch_label = fetch_label
+            # An unchecked checkbox is simply absent from the form
+            config.email_provider.unread_only = form.get("unread_only") == "on"
+            config.email_provider.lookback_days = int(
+                form.get("lookback_days") or config.email_provider.lookback_days
+            )
             _save_and_reload(state, config, scheduler, scheduled_run)
         except Exception as exc:
             return templates.TemplateResponse(request, "config.html", {
@@ -262,6 +267,12 @@ def _write_yaml(config: AppConfig, path: Path, config_dir: Path) -> None:
         data["email_provider"]["token_file"] = _yaml_path(ep.token_file, config_dir)
     if ep.fetch_label:
         data["email_provider"]["fetch_label"] = ep.fetch_label
+    if not ep.unread_only:
+        data["email_provider"]["unread_only"] = False
+    if ep.lookback_days != 3:
+        data["email_provider"]["lookback_days"] = ep.lookback_days
+    if ep.account != "0":
+        data["email_provider"]["account"] = ep.account
     # Provider- and classifier-specific fields the models don't know about
     data["email_provider"].update(ep.model_extra or {})
     data["llm"].update(getattr(config.llm, "model_extra", None) or {})

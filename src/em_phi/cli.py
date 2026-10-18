@@ -396,7 +396,12 @@ def _build_provider(config: AppConfig) -> EmailProvider:
             raise click.ClickException(
                 "email_provider 'gmail' requires token_file under email_provider:"
             )
-        return GmailProvider(ep.token_file, ep.fetch_label)
+        return GmailProvider(
+            ep.token_file,
+            ep.fetch_label,
+            unread_only=ep.unread_only,
+            lookback_days=ep.lookback_days,
+        )
     try:
         module = importlib.import_module(f"em_phi.providers.{name}")
     except ImportError as e:

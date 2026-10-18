@@ -66,6 +66,62 @@ def test_irrelevant_with_archive_action(
     assert action == "archive"
 
 
+def _inbox_rule(sample_rule):
+    return sample_rule.model_copy(update={"action": "inbox"})
+
+
+def test_inbox_action_moves_unread_relevant_email(
+    relevant_email, relevant_verdict, sample_rule, sample_config
+) -> None:
+    provider = _make_provider()
+    action = apply_verdict(
+        email=relevant_email,  # unread by default
+        verdict=relevant_verdict,
+        rule=_inbox_rule(sample_rule),
+        labels=sample_config.labels,
+        provider=provider,
+        dry_run=False,
+    )
+    provider.move_to_inbox.assert_called_once_with(relevant_email.message_id)
+    assert action == "inbox"
+
+
+def test_inbox_action_only_labels_a_read_email(
+    relevant_email, relevant_verdict, sample_rule, sample_config
+) -> None:
+    provider = _make_provider()
+    relevant_email.unread = False
+    action = apply_verdict(
+        email=relevant_email,
+        verdict=relevant_verdict,
+        rule=_inbox_rule(sample_rule),
+        labels=sample_config.labels,
+        provider=provider,
+        dry_run=False,
+    )
+    provider.apply_label.assert_called_once_with(relevant_email.message_id, sample_config.labels.relevant)
+    provider.move_to_inbox.assert_not_called()
+    provider.archive.assert_not_called()
+    assert action == "label"
+
+
+def test_inbox_action_still_archives_a_read_irrelevant_email(
+    irrelevant_email, irrelevant_verdict, sample_rule, sample_config
+) -> None:
+    provider = _make_provider()
+    irrelevant_email.unread = False
+    action = apply_verdict(
+        email=irrelevant_email,
+        verdict=irrelevant_verdict,
+        rule=_inbox_rule(sample_rule),
+        labels=sample_config.labels,
+        provider=provider,
+        dry_run=False,
+    )
+    provider.archive.assert_called_once_with(irrelevant_email.message_id)
+    assert action == "archive"
+
+
 def test_dry_run_makes_no_provider_calls(
     relevant_email, relevant_verdict, sample_rule, sample_config
 ) -> None:

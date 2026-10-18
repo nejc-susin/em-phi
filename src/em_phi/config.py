@@ -30,6 +30,16 @@ class EmailProviderConfig(BaseModel):
     credentials_file: Path | None = None
     token_file: Path | None = None
     fetch_label: str | None = None  # if set, only fetch emails that carry this label
+    unread_only: bool = True  # False: also process read emails from the last lookback_days
+    lookback_days: int = Field(default=3, ge=1, le=30)  # only used when unread_only is false
+    # Gmail web account used in links (/mail/u/<account>/): the signed-in account's index or its address
+    account: str = "0"
+
+    @field_validator("account", mode="before")
+    @classmethod
+    def account_as_str(cls, v: object) -> object:
+        # `account: 1` in YAML is an int
+        return str(v) if isinstance(v, int) and not isinstance(v, bool) else v
 
     @field_validator("credentials_file", "token_file", mode="before")
     @classmethod

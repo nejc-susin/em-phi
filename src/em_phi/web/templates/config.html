@@ -177,6 +177,19 @@
         class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
     </div>
 
+    <!-- Unread only / lookback -->
+    <div class="flex items-center gap-2 sm:col-span-2">
+      <input type="checkbox" id="unread_only" name="unread_only" {% if config.email_provider.unread_only %}checked{% endif %}
+        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+      <label for="unread_only" class="text-sm text-gray-700">Only process unread emails</label>
+    </div>
+    <div>
+      <label for="lookback_days" class="block text-xs font-medium text-gray-600 mb-1">Lookback (days)</label>
+      <input id="lookback_days" name="lookback_days" type="number" min="1" max="30" value="{{ config.email_provider.lookback_days }}"
+        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <p class="text-xs text-gray-400 mt-1">When unchecked, emails from the last N days are processed whether read or not.</p>
+    </div>
+
     <div class="sm:col-span-2">
       <button type="submit" class="bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Save settings</button>
     </div>

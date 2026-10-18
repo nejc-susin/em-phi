@@ -16,7 +16,11 @@ class EmailProvider(Protocol):
         ...
 
     def fetch_unread(self, patterns: list[str]) -> list[str]:
-        """Return message IDs of unread messages matching the given sender patterns.
+        """Return IDs of candidate messages matching the given sender patterns.
+
+        Normally these are unread messages; a provider configured to include read
+        mail returns recent messages instead. Already-processed messages are
+        skipped by the decision log, so re-listing them is fine.
 
         Each pattern is either an exact email address or a bare domain name.
         Multiple patterns are OR-combined.

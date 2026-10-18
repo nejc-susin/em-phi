@@ -207,3 +207,31 @@ def test_email_provider_extra_fields_preserved(tmp_path: Path) -> None:
     data = {**_VALID_DATA, "email_provider": {**_VALID_DATA["email_provider"], "imap_host": "x"}}
     config = load_config(_write_config(tmp_path, data))
     assert config.email_provider.model_extra == {"imap_host": "x"}
+
+
+def test_email_provider_defaults(tmp_path: Path) -> None:
+    ep = load_config(_write_config(tmp_path, _VALID_DATA)).email_provider
+    assert ep.unread_only is True
+    assert ep.lookback_days == 3
+    assert ep.account == "0"
+
+
+def test_email_provider_unread_and_account_settings_load(tmp_path: Path) -> None:
+    data = {**_VALID_DATA, "email_provider": {
+        **_VALID_DATA["email_provider"], "unread_only": False, "lookback_days": 7, "account": 1,
+    }}
+    ep = load_config(_write_config(tmp_path, data)).email_provider
+    assert (ep.unread_only, ep.lookback_days, ep.account) == (False, 7, "1")
+
+
+@pytest.mark.parametrize("days", [0, 31])
+def test_lookback_days_out_of_range_is_rejected(tmp_path: Path, days: int) -> None:
+    data = {**_VALID_DATA, "email_provider": {**_VALID_DATA["email_provider"], "lookback_days": days}}
+    with pytest.raises(ConfigError, match="lookback_days"):
+        load_config(_write_config(tmp_path, data))
+
+
+@pytest.mark.parametrize("days", [1, 30])
+def test_lookback_days_bounds_are_accepted(tmp_path: Path, days: int) -> None:
+    data = {**_VALID_DATA, "email_provider": {**_VALID_DATA["email_provider"], "lookback_days": days}}
+    assert load_config(_write_config(tmp_path, data)).email_provider.lookback_days == days

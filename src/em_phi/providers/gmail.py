@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -61,9 +62,14 @@ class GmailProvider:
         self,
         token_file: Path,
         fetch_label: str | None = None,
+        *,
+        unread_only: bool = True,
+        lookback_days: int = 3,
     ) -> None:
         self._token_file = token_file
         self._fetch_label = fetch_label
+        self._unread_only = unread_only
+        self._lookback_days = lookback_days
         self._service: Any = None
         self._label_cache: dict[str, str] = {}  # label name → label id
 
@@ -102,18 +108,18 @@ class GmailProvider:
     # ------------------------------------------------------------------
 
     def fetch_unread(self, patterns: list[str]) -> list[str]:
-        """Return message IDs of unread messages matching any of the sender patterns."""
-        froms = [_pattern_to_from(p) for p in patterns]
-        if len(froms) == 1:
-            from_clause = froms[0]
-        else:
-            from_clause = "{" + " ".join(froms) + "}"
-        query = f"{from_clause} is:unread"
-        if self._fetch_label:
-            label = self._fetch_label
-            if any(c.isspace() for c in label):
-                label = '"' + label.replace('"', "") + '"'
-            query += f" label:{label}"
+        """Return IDs of candidate messages matching any of the sender patterns.
+
+        Unread messages, or messages from the last `lookback_days` days (read or
+        not) when the provider was created with unread_only=False. Capped at
+        _MAX_RESULTS; already-processed messages are skipped by the decision log.
+        """
+        query = build_query(
+            patterns,
+            fetch_label=self._fetch_label,
+            unread_only=self._unread_only,
+            lookback_days=self._lookback_days,
+        )
 
         logger.debug("Gmail: querying %r", query)
         try:
@@ -168,6 +174,7 @@ class GmailProvider:
             subject=subject,
             body=body,
             received_at=received_at,
+            unread="UNREAD" in raw.get("labelIds", []),
         )
 
     def apply_label(self, message_id: str, label_name: str) -> None:
@@ -257,6 +264,34 @@ class GmailProvider:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def build_query(
+    patterns: list[str],
+    *,
+    fetch_label: str | None,
+    unread_only: bool,
+    lookback_days: int,
+) -> str:
+    """Build the Gmail search query for the given sender patterns."""
+    froms = [_pattern_to_from(p) for p in patterns]
+    if len(froms) == 1:
+        from_clause = froms[0]
+    else:
+        from_clause = "{" + " ".join(froms) + "}"
+    state_clause = "is:unread" if unread_only else f"newer_than:{lookback_days}d"
+    query = f"{from_clause} {state_clause}"
+    if fetch_label:
+        label = fetch_label
+        if any(c.isspace() for c in label):
+            label = '"' + label.replace('"', "") + '"'
+        query += f" label:{label}"
+    return query
+
+
+def message_url(message_id: str, account: str = "0") -> str:
+    """Gmail web URL for a message. account is the /mail/u/ index or the account's email address."""
+    return f"https://mail.google.com/mail/u/{quote(account, safe='@')}/#all/{message_id}"
+
 
 def _pattern_to_from(pattern: str) -> str:
     """Convert a sender pattern to a Gmail from: query clause.

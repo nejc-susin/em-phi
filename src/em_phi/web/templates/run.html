@@ -188,11 +188,22 @@ function startRun() {
       card.innerHTML = `
         <span class="text-xs font-medium px-2 py-1 rounded ${badgeColor} mt-0.5 shrink-0">${data.verdict}</span>
         <div class="min-w-0">
-          <p class="text-sm font-medium text-gray-900 truncate">${escHtml(data.subject)}</p>
+          <p class="text-sm font-medium text-gray-900 truncate"><span class="subject">${escHtml(data.subject)}</span></p>
           <p class="text-xs text-gray-500 mt-0.5">${escHtml(data.reason)}${dryTag}</p>
         </div>
         <span class="text-xs text-gray-400 ml-auto shrink-0">${escHtml(data.action)}</span>
       `;
+      if (data.url) {
+        // href set as a property (not concatenated HTML); the subject stays escaped.
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'hover:underline';
+        const subject = card.querySelector('.subject');
+        link.textContent = data.subject;
+        subject.replaceWith(link);
+      }
       results.appendChild(card);
     } else if (data.type === 'error') {
       const card = document.createElement('div');

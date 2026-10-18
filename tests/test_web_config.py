@@ -36,9 +36,9 @@ rules:
 """
 
 
-def _setup(tmp_path: Path) -> tuple[TestClient, Path]:
+def _setup(tmp_path: Path, yaml_text: str = CONFIG_YAML) -> tuple[TestClient, Path]:
     config_path = tmp_path / "config.yaml"
-    config_path.write_text(CONFIG_YAML)
+    config_path.write_text(yaml_text)
     config_path.chmod(0o600)
     app = create_app(load_config(config_path), config_path)
     client = TestClient(app)
@@ -78,6 +78,67 @@ def test_save_settings_preserves_llm_name_extras_and_relative_paths(tmp_path: Pa
     assert config_path.stat().st_mode & 0o777 == 0o600
     # No temp files left behind
     assert [p.name for p in tmp_path.iterdir()] == ["config.yaml"]
+
+
+def test_save_settings_persists_read_mail_options(tmp_path: Path) -> None:
+    client, config_path = _setup(tmp_path)
+
+    # An unchecked checkbox is simply absent from the submitted form.
+    response = client.post(
+        "/config/settings", data=_settings_form(lookback_days="7"), follow_redirects=False
+    )
+    assert response.status_code == 303
+
+    ep = yaml.safe_load(config_path.read_text())["email_provider"]
+    assert ep["unread_only"] is False
+    assert ep["lookback_days"] == 7
+    reloaded = load_config(config_path).email_provider
+    assert (reloaded.unread_only, reloaded.lookback_days) == (False, 7)
+
+    page = client.get("/config").text
+    assert 'name="lookback_days"' in page and 'value="7"' in page
+    assert "checked" not in page.split('id="unread_only"')[1].split(">")[0]
+
+
+def test_save_settings_does_not_write_default_read_mail_options(tmp_path: Path) -> None:
+    client, config_path = _setup(tmp_path)
+
+    response = client.post(
+        "/config/settings",
+        data=_settings_form(unread_only="on", lookback_days="3"),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    ep = yaml.safe_load(config_path.read_text())["email_provider"]
+    assert "unread_only" not in ep
+    assert "lookback_days" not in ep
+    assert "account" not in ep
+
+
+def test_save_settings_preserves_account(tmp_path: Path) -> None:
+    client, config_path = _setup(
+        tmp_path, CONFIG_YAML.replace("  imap_host: example.org\n", "  account: me@example.com\n")
+    )
+
+    response = client.post(
+        "/config/settings", data=_settings_form(unread_only="on"), follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert yaml.safe_load(config_path.read_text())["email_provider"]["account"] == "me@example.com"
+
+
+@pytest.mark.parametrize("days", ["0", "31", "abc"])
+def test_invalid_lookback_days_shows_error_banner(tmp_path: Path, days: str) -> None:
+    client, config_path = _setup(tmp_path)
+    before = config_path.read_bytes()
+
+    response = client.post(
+        "/config/settings", data=_settings_form(lookback_days=days), follow_redirects=False
+    )
+    assert response.status_code == 422
+    assert "bg-red-50" in response.text
+    assert config_path.read_bytes() == before
 
 
 def test_save_settings_writes_outside_paths_absolute(tmp_path: Path) -> None:

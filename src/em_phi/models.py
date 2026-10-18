@@ -10,6 +10,7 @@ class Email:
     subject: str
     body: str
     received_at: datetime
+    unread: bool = True
 
 
 @dataclass

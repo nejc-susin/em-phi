@@ -6,11 +6,12 @@ from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, Rul
 from em_phi.web.app import _session_value, create_app
 
 
-def _make_client(tmp_path: Path) -> TestClient:
+def _make_client(tmp_path: Path, **provider_fields) -> TestClient:
     config = AppConfig(
         email_provider=EmailProviderConfig(
             credentials_file=Path("credentials.json"),
             token_file=Path("token.json"),
+            **provider_fields,
         ),
         decision_log=DecisionLogConfig(path=tmp_path / "decisions.db"),
         rules=[RuleConfig(email="newsletter@example.com", name="Example Newsletter", interests="python")],
@@ -75,6 +76,51 @@ def test_log_page_filters_by_inbox_action_and_offers_only_recorded_actions(tmp_p
     assert "Label subject" not in response.text
     assert '<option value="inbox" selected' in response.text
     assert 'value="keep"' not in response.text
+
+
+def _record_one(tmp_path: Path, message_id: str = "msg-abc", subject: str = "Linked <b>subject</b>") -> None:
+    from datetime import datetime, timezone
+
+    from em_phi.decision_log import DecisionLog
+    from em_phi.models import Verdict
+
+    DecisionLog(tmp_path / "decisions.db").record(
+        message_id=message_id,
+        sender="newsletter@example.com",
+        subject=subject,
+        received_at=datetime.now(timezone.utc),
+        verdict=Verdict(verdict="relevant", confidence="high", reason="r"),
+        action_taken="label",
+        rule_name="Example Newsletter",
+    )
+
+
+def test_log_subject_links_to_gmail(tmp_path: Path) -> None:
+    client = _make_client(tmp_path)
+    _record_one(tmp_path)
+
+    html = client.get("/log").text
+
+    assert 'href="https://mail.google.com/mail/u/0/#all/msg-abc"' in html
+    assert 'target="_blank" rel="noopener noreferrer"' in html
+    assert "Linked &lt;b&gt;subject&lt;/b&gt;" in html
+
+
+def test_log_link_uses_configured_account(tmp_path: Path) -> None:
+    client = _make_client(tmp_path, account="me@example.com")
+    _record_one(tmp_path)
+
+    assert "/mail/u/me@example.com/#all/msg-abc" in client.get("/log").text
+
+
+def test_log_subject_is_plain_text_for_other_providers(tmp_path: Path) -> None:
+    client = _make_client(tmp_path, name="imap")
+    _record_one(tmp_path)
+
+    html = client.get("/log").text
+
+    assert "Linked &lt;b&gt;subject&lt;/b&gt;" in html
+    assert "mail.google.com" not in html
 
 
 def _make_multi_rule_client(tmp_path: Path) -> TestClient:
