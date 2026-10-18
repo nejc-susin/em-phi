@@ -4,6 +4,7 @@ from pathlib import Path
 
 import click
 
+from em_phi.actions import ACTIONS_TAKEN
 from em_phi.classifiers.base import Classifier
 from em_phi.config import AppConfig, ConfigError, load_config
 from em_phi.decision_log import DecisionLog
@@ -64,7 +65,7 @@ def check_config(ctx: click.Context) -> None:
 @click.option("--rule", default=None, help="Filter by rule email address.")
 @click.option("--days", default=None, type=click.IntRange(min=1), help="Limit to decisions from the last N days.")
 @click.option("--verdict", default=None, type=click.Choice(["relevant", "irrelevant"]), help="Filter by verdict.")
-@click.option("--action", "action_taken", default=None, type=click.Choice(["label", "archive", "keep"]),
+@click.option("--action", "action_taken", default=None, type=click.Choice(list(ACTIONS_TAKEN)),
               help="Filter by action taken.")
 @click.option("--search", default=None, help="Filter to entries whose subject or reason contains this text.")
 @click.option("--limit", default=20, show_default=True, type=click.IntRange(min=1, max=500),

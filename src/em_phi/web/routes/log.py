@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from em_phi.actions import ACTIONS_TAKEN
 from em_phi.decision_log import DecisionLog
 from em_phi.web.state import AppState
 
@@ -11,7 +12,6 @@ _MIN_LIMIT = 1
 _MAX_LIMIT = 500
 _DEFAULT_LIMIT = 50
 _VALID_VERDICTS = {"relevant", "irrelevant"}
-_VALID_ACTIONS = {"label", "archive", "keep"}
 
 
 def _parse_int(raw: str | None) -> int | None:
@@ -48,7 +48,7 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
         offset = max(0, _parse_int(offset) or 0)
         if verdict not in _VALID_VERDICTS:
             verdict = None
-        if action not in _VALID_ACTIONS:
+        if action not in ACTIONS_TAKEN:
             action = None
         search = search.strip() if search else None
 
@@ -76,6 +76,7 @@ def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
             "filter_limit": limit,
             "filter_offset": offset,
             "rule_options": rule_options,
+            "action_options": ACTIONS_TAKEN,
         })
 
     return r

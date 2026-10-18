@@ -6,6 +6,9 @@ from em_phi.providers.base import EmailProvider
 
 logger = logging.getLogger(__name__)
 
+# Values apply_verdict returns, and therefore what the decision log stores in action_taken.
+ACTIONS_TAKEN: tuple[str, ...] = ("label", "archive", "inbox")
+
 
 def apply_verdict(
     *,

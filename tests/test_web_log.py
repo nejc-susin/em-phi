@@ -47,3 +47,30 @@ def test_log_page_garbage_limit_is_ignored_not_rejected(tmp_path: Path) -> None:
 
     response = client.get("/log", params={"limit": "not-a-number"})
     assert response.status_code == 200
+
+
+def test_log_page_filters_by_inbox_action_and_offers_only_recorded_actions(tmp_path: Path) -> None:
+    from datetime import datetime, timezone
+
+    from em_phi.decision_log import DecisionLog
+    from em_phi.models import Verdict
+
+    client = _make_client(tmp_path)
+    log = DecisionLog(tmp_path / "decisions.db")
+    for message_id, subject, action in (("m1", "Inbox subject", "inbox"), ("m2", "Label subject", "label")):
+        log.record(
+            message_id=message_id,
+            sender="newsletter@example.com",
+            subject=subject,
+            received_at=datetime.now(timezone.utc),
+            verdict=Verdict(verdict="relevant", confidence="high", reason="r"),
+            action_taken=action,
+        )
+
+    response = client.get("/log", params={"action": "inbox"})
+
+    assert response.status_code == 200
+    assert "Inbox subject" in response.text
+    assert "Label subject" not in response.text
+    assert '<option value="inbox" selected' in response.text
+    assert 'value="keep"' not in response.text

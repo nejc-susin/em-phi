@@ -41,3 +41,18 @@ def test_serve_configures_logging_before_starting_uvicorn(tmp_path: Path) -> Non
     assert result.exit_code == 0, result.output
     mock_configure_logging.assert_called_once()
     mock_uvicorn_run.assert_called_once()
+
+
+def test_log_action_filter_accepts_inbox_and_rejects_keep(tmp_path: Path) -> None:
+    from em_phi.decision_log import DecisionLog
+
+    config_path = _write_config(tmp_path)
+    DecisionLog(tmp_path / "decisions.db")  # creates the db file
+    runner = CliRunner()
+
+    ok = runner.invoke(cli, ["--config", str(config_path), "log", "--action", "inbox"])
+    assert ok.exit_code == 0, ok.output
+
+    bad = runner.invoke(cli, ["--config", str(config_path), "log", "--action", "keep"])
+    assert bad.exit_code == 2
+    assert "Invalid value" in bad.output
