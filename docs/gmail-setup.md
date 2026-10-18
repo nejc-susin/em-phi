@@ -55,30 +55,13 @@ Save the downloaded file as `credentials.json` in the same directory as your `co
 
 This is a one-time step that opens a browser for the Google consent screen and writes `token.json`. After this, em-phi uses the token silently and auto-refreshes it — no browser needed again.
 
-Save the following as `authorize.py` (anywhere convenient — you can delete it afterwards):
-
-```python
-from google_auth_oauthlib.flow import InstalledAppFlow
-from pathlib import Path
-import sys
-
-credentials_file = sys.argv[1] if len(sys.argv) > 1 else "credentials.json"
-token_file = sys.argv[2] if len(sys.argv) > 2 else "token.json"
-
-flow = InstalledAppFlow.from_client_secrets_file(
-    credentials_file,
-    scopes=["https://www.googleapis.com/auth/gmail.modify"],
-)
-creds = flow.run_local_server(port=0)
-Path(token_file).write_text(creds.to_json())
-print(f"Token saved to {token_file}")
-```
-
-Run it with the em-phi virtualenv (which already has the required library):
+The repo includes a helper script, [`oauth/authorize.py`](../oauth/authorize.py), that does this. Run it with the em-phi virtualenv (which already has the required library):
 
 ```bash
-.venv/bin/python authorize.py credentials.json token.json
+.venv/bin/python oauth/authorize.py credentials.json token.json
 ```
+
+The two arguments are optional and default to `credentials.json` and `token.json` in the current directory.
 
 Place the resulting `token.json` wherever your `config.yaml` points with `email_provider.token_file`.
 
