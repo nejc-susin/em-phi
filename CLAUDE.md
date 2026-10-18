@@ -40,8 +40,8 @@ em-phi --help              # verify CLI works
 Run tests:
 
 ```bash
-uv run pytest              # all 34 tests, ~0.4s
-uv run pytest tests/test_config.py -v   # one file
+uv run python -m pytest    # all 114 tests, ~2s
+uv run python -m pytest tests/test_config.py -v   # one file
 ```
 
 No live Gmail or Anthropic credentials are needed for tests — all external calls are mocked.
@@ -56,14 +56,28 @@ src/em_phi/
 ├── config.py        # YAML loading + Pydantic validation + path expansion
 ├── models.py        # Email, Verdict dataclasses
 ├── processor.py     # Core loop: fetch → skip → classify → act → log
+├── debug.py         # Prompt inspector behind `em-phi debug` and the web debug page
 ├── actions.py       # Applies verdicts to Gmail via the provider
 ├── decision_log.py  # SQLite decision log (also tracks processed message IDs)
 ├── providers/
 │   ├── base.py      # EmailProvider Protocol (@runtime_checkable)
 │   └── gmail.py     # GmailProvider — OAuth2, fetch, label, archive
-└── classifiers/
-    ├── base.py      # Classifier Protocol (@runtime_checkable)
-    └── claude.py    # ClaudeClassifier — prompt construction, API call, JSON parsing
+├── classifiers/
+│   ├── base.py      # Classifier Protocol (@runtime_checkable)
+│   └── claude.py    # ClaudeClassifier — prompt construction, API call, JSON parsing
+└── web/             # FastAPI UI behind `em-phi serve`
+    ├── app.py       # App factory, token auth, cross-site request blocking
+    ├── state.py     # Shared state (live config, run lock)
+    ├── scheduler.py # Built-in scheduler (interval or cron) for web mode
+    ├── routes/
+    │   ├── config.py   # Config editor (validate, then atomic write)
+    │   ├── debug.py    # Prompt inspector page
+    │   ├── log.py      # Decision log viewer
+    │   ├── run.py      # Manual run controls
+    │   └── _helpers.py # Shared route helpers
+    ├── templates/   # Jinja2 templates
+    └── static/
+        └── tailwind.js  # Vendored Tailwind CSS script
 ```
 
 ---
@@ -74,11 +88,11 @@ src/em_phi/
 
 **SQLite does double duty.** `decision_log.py` is both the human-readable audit log and the deduplication mechanism. `is_processed(message_id)` is an O(1) lookup used at the top of the processing loop to skip already-seen emails across runs.
 
-**Prompt caching per rule.** In `classifiers/claude.py`, the system prompt contains the rule's interest profile and tolerance (which is constant per rule). It uses `cache_control: ephemeral`. When a run processes multiple emails from the same rule, only the first call is a cache miss.
+**Prompt caching per rule.** In `classifiers/claude.py`, the system prompt contains the rule's interest profile and tolerance (constant per rule) and is marked `cache_control: ephemeral`. Prompts shorter than the model's minimum cacheable length (512 tokens for Claude Haiku 5.5) silently don't cache, which is the case for most rules' short interest profiles. It's harmless, but not a guaranteed saving.
 
 **Path resolution.** All path fields in the config (credentials, token, db) go through `os.path.expandvars` + `os.path.expanduser`, then are resolved relative to the config file's directory if not absolute. This is handled in `config.py:AppConfig.resolve_relative_paths()`.
 
-**Errors are non-fatal per email.** `processor._process_rule` catches exceptions from `get_message`, `classify`, and `apply_verdict` individually, calls `on_error`, and continues to the next message. Only `fetch_unread` failure aborts the whole rule.
+**Errors are non-fatal per email.** `processor._process_rule` catches exceptions from `get_message`, `classify`, and `apply_verdict` individually, plus the decision-log write, calls `on_error`, and continues to the next message. Only `fetch_unread` failure aborts the whole rule.
 
 **`ANTHROPIC_API_KEY` is never in config.** The key is read from the environment in `ClaudeClassifier.__init__`. The `llm:` block only holds model name and max_tokens.
 
@@ -98,7 +112,7 @@ src/em_phi/
 1. Create `src/em_phi/classifiers/myclassifier.py`
 2. Implement `classify(email: Email, rule: RuleConfig) -> Verdict` from `classifiers/base.py:Classifier`
 3. Define a top-level `create(config: AppConfig) -> Classifier` function
-4. In `config.yaml`, set `llm.name: myclassifier` and put any LLM-specific fields under `llm:`
+4. In `config.yaml`, set `llm.name: myclassifier` and put any LLM-specific fields under `llm:` — they are preserved in `config.llm.model_extra`
 
 `cli.py:_build_classifier` dynamically imports `em_phi.classifiers.myclassifier` and calls `create(config)`. No other files change.
 
@@ -114,11 +128,13 @@ src/em_phi/
 
 All CLI commands that need the config call `load_config` and catch `ConfigError`, converting it to `click.ClickException`.
 
+Unknown config keys are rejected (only `email_provider` and `llm` allow extra fields). The web config editor validates the whole config before atomically replacing `config.yaml`, and never mutates the live config on failure.
+
 ---
 
 ## Testing conventions
 
-- Tests live in `tests/`, split by module: `test_config.py`, `test_classifier.py`, `test_processor.py`
+- Tests live in `tests/`, split by module: `test_classifier.py`, `test_cli.py`, `test_config.py`, `test_decision_log.py`, `test_gmail_body.py`, `test_gmail_provider.py`, `test_processor.py`, `test_web_auth.py`, `test_web_config.py`, `test_web_debug.py`, `test_web_log.py`, `test_web_run.py`, `test_web_static_assets.py`
 - Shared fixtures in `tests/conftest.py` — use these rather than building config/email objects inline
 - No live API calls — Gmail and Anthropic are mocked with `unittest.mock.MagicMock`
 - `pytest-mock` is available but the tests mostly use `unittest.mock` directly

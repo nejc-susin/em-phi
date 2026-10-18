@@ -8,7 +8,7 @@
 email_provider:
   name: gmail
   credentials_file: credentials.json   # OAuth2 client credentials (from Google Cloud Console)
-  token_file: token.json               # Auto-managed refresh token (created by `em-phi setup`)
+  token_file: token.json               # Auto-managed refresh token (created by oauth/authorize.py)
   # fetch_label: "ToFilter"            # optional: only process emails carrying this Gmail label
 
 # LLM classifier. All LLM-specific settings nest under this block.
@@ -36,7 +36,7 @@ decision_log:
 #   # cron: "0 */6 * * *"   # cron expression; takes precedence over interval_hours if set
 
 # web:                # required to use em-phi serve. Remove or omit for headless cron mode.
-#   host: 127.0.0.1
+#   host: 127.0.0.1         # must be 0.0.0.0 when running in Docker
 #   port: 8080
 #   auth_token: change-me   # CHANGE THIS — protects the config editor and run controls
 
@@ -50,7 +50,8 @@ rules:
   #   conservative — keep anything even slightly relevant; archive only obvious misses
   # 'action' controls what happens to irrelevant emails:
   #   label   — apply the irrelevant label only (safe default while you build trust)
-  #   archive — label + remove from inbox
+  #   archive — label + archive irrelevant; relevant emails stay where they are
+  #   inbox   — label both; move relevant emails to the inbox, archive irrelevant
 
   - email: newsletter@example.com
     name: "Example Newsletter"

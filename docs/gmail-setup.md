@@ -84,4 +84,4 @@ Delete `token.json` locally to complete the cleanup.
 
 **"Access blocked: em-phi has not completed Google's verification process"** — click **Advanced** → **Go to em-phi (unsafe)** on the consent screen. This is expected for personal apps in testing mode.
 
-**Token expired / "invalid_grant"** — delete `token.json` and run `em-phi setup` again.
+**Token expired / "invalid_grant"** — delete `token.json` and run `oauth/authorize.py` again (see step 5).

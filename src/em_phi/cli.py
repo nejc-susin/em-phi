@@ -56,9 +56,9 @@ def check_config(ctx: click.Context) -> None:
     click.echo("Paths:")
     ep = config.email_provider
     if ep.credentials_file:
-        _report_path("credentials_file", ep.credentials_file, missing_hint="run `em-phi setup`")
+        _report_path("credentials_file", ep.credentials_file, missing_hint="download from Google Cloud Console (docs/gmail-setup.md)")
     if ep.token_file:
-        _report_path("token_file", ep.token_file, missing_hint="run `em-phi setup`")
+        _report_path("token_file", ep.token_file, missing_hint="run oauth/authorize.py (docs/gmail-setup.md)")
     _report_path("decision_log", config.decision_log.path, missing_hint="created on first run")
 
 

@@ -44,7 +44,7 @@ Edit `config.yaml` with your rules and interest profiles. See [Config reference]
 
 ### 4. Generate token.json
 
-Follow [docs/gmail-setup.md](docs/gmail-setup.md) step 5 to run the one-time authorization script. It opens a browser for the Google OAuth2 consent screen and saves a refresh token to `token.json`.
+Follow [docs/gmail-setup.md](docs/gmail-setup.md) step 5 to run the one-time authorization script (`oauth/authorize.py`). It opens a browser for the Google OAuth2 consent screen and saves a refresh token to `token.json`.
 
 ### 5. Preview (dry run)
 
@@ -123,13 +123,16 @@ Use cases:
 ## Config reference
 
 ```yaml
-gmail:
+email_provider:
+  name: gmail
   credentials_file: credentials.json   # path to OAuth2 client credentials
   token_file: token.json               # path to saved refresh token
+  # fetch_label: "ToFilter"            # optional: only process emails carrying this Gmail label
 
-anthropic:
-  model: claude-haiku-5-5     # Claude model to use
-  max_tokens: 256                      # max tokens in Claude's response
+llm:
+  name: claude
+  model: claude-haiku-5-5              # Claude model to use
+  max_tokens: 1024                     # max tokens in Claude's response
 
 labels:
   relevant: "EmPhi/Relevant"           # Gmail label for relevant emails
@@ -138,6 +141,20 @@ labels:
 decision_log:
   path: decisions.db                   # SQLite database path
 
+# logging:
+#   level: WARNING                     # DEBUG | INFO | WARNING | ERROR
+#   file: null                         # optional log file path
+
+# schedule:                            # web mode only (em-phi serve)
+#   enabled: false
+#   interval_hours: 6                  # >= 1
+#   # cron: "0 */6 * * *"              # takes precedence over interval_hours
+
+# web:                                 # required for em-phi serve
+#   host: 127.0.0.1                    # use 0.0.0.0 inside Docker
+#   port: 8080
+#   auth_token: change-me
+
 rules:
   - email: newsletter@example.com      # exact From: address, comma-separated list, or domain
     name: "Example Newsletter"         # human-readable name (used in prompt)
@@ -145,8 +162,10 @@ rules:
       What you want to read from this sender.
       What you don't want. Be specific.
     tolerance: balanced                # aggressive | balanced | conservative
-    action: label                      # label | archive
+    action: label                      # label | archive | inbox
 ```
+
+Unknown keys are rejected, so typos fail `em-phi check-config` instead of being silently ignored. Configs using the old top-level `gmail:` / `anthropic:` blocks must be renamed to `email_provider:` / `llm:`.
 
 **Path fields** (`credentials_file`, `token_file`, `decision_log.path`) support:
 - Relative paths — resolved relative to the config file's directory
@@ -159,7 +178,12 @@ rules:
 - `balanced` — keep somewhat relevant emails; archive only clearly irrelevant ones
 - `conservative` — keep anything even slightly relevant; archive only obvious misses
 
-**Action** controls what happens to *irrelevant* emails. Relevant emails are always labelled and kept in inbox. Start with `label` for a few days to build confidence, then switch to `archive`.
+**Action** controls what happens after classification:
+- `label` — apply the relevant/irrelevant label only; nothing is moved
+- `archive` — label both; archive irrelevant emails (relevant ones stay where they are)
+- `inbox` — label both; move relevant emails to the inbox and archive irrelevant ones
+
+Start with `label` for a few days to build confidence, then switch to `archive` or `inbox`.
 
 ---
 
@@ -183,7 +207,7 @@ The decision log (`decisions.db`) records, for each processed email:
 
 - Sender address, subject line, and timestamp
 - The verdict (relevant / irrelevant), confidence, and Claude's one-sentence reason
-- The action taken (label / archive)
+- The action taken (label / archive / inbox)
 
 Email body text is never written to the database or log files.
 
@@ -217,7 +241,7 @@ Create a file in `src/em_phi/classifiers/` that implements the `Classifier` prot
 ## Running tests
 
 ```bash
-uv run pytest
+uv run python -m pytest
 ```
 
 ---
