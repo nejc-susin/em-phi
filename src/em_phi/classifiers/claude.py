@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 
 import anthropic
 
@@ -42,6 +43,13 @@ Date: {date}
 {body}"""
 
 
+def _as_utc(dt: datetime) -> datetime:
+    """Naive datetimes are assumed to be UTC; aware ones are converted."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def build_prompt(email: Email, rule: RuleConfig) -> tuple[str, str]:
     """Return (system_prompt, user_message) for the given email and rule config."""
     system = _SYSTEM_TEMPLATE.format(
@@ -52,7 +60,7 @@ def build_prompt(email: Email, rule: RuleConfig) -> tuple[str, str]:
     )
     user = _USER_TEMPLATE.format(
         subject=email.subject,
-        date=email.received_at.strftime("%Y-%m-%d %H:%M UTC"),
+        date=_as_utc(email.received_at).strftime("%Y-%m-%d %H:%M UTC"),
         body=email.body,
     )
     return system, user
@@ -148,6 +156,8 @@ def _parse_verdict(text: str) -> Verdict:
 
 
 def _validate(data: dict) -> Verdict:
+    if not isinstance(data, dict):
+        raise ValueError(f"Expected a JSON object, got {type(data).__name__}")
     verdict = str(data.get("verdict", "")).lower()
     confidence = str(data.get("confidence", "")).lower()
     reason = str(data.get("reason", "")).strip()

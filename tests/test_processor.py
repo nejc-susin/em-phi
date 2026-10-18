@@ -554,3 +554,38 @@ def test_process_all_rule_filter_limits_hooks(
 
     assert started == [sample_rule_archive.name]
     assert len(summary.results) == 1
+
+
+def test_process_rule_survives_log_write_error(
+    tmp_db, sample_config, sample_rule, relevant_email, irrelevant_email,
+    relevant_verdict, irrelevant_verdict,
+) -> None:
+    provider = MagicMock()
+    provider.fetch_unread.return_value = ["msg001", "msg002"]
+    emails = {"msg001": relevant_email, "msg002": irrelevant_email}
+    provider.get_message.side_effect = lambda mid: emails[mid]
+    verdicts = {"msg001": relevant_verdict, "msg002": irrelevant_verdict}
+    classifier = MagicMock()
+    classifier.classify.side_effect = lambda email, r: verdicts[email.message_id]
+
+    log = MagicMock()
+    log.is_processed.return_value = False
+    log.record.side_effect = [RuntimeError("database is locked"), None]
+    on_error = MagicMock()
+
+    result = _process_rule(
+        rule=sample_rule,
+        config=sample_config,
+        provider=provider,
+        classifier=classifier,
+        log=log,
+        dry_run=False,
+        on_email=None,
+        on_error=on_error,
+    )
+
+    assert result.errors == 1
+    assert result.processed == 1
+    assert log.record.call_count == 2
+    on_error.assert_called_once()
+    assert "msg001" in on_error.call_args[0][0]

@@ -79,7 +79,10 @@ class GmailProvider:
             from_clause = "{" + " ".join(froms) + "}"
         query = f"{from_clause} is:unread"
         if self._fetch_label:
-            query += f" label:{self._fetch_label}"
+            label = self._fetch_label
+            if any(c.isspace() for c in label):
+                label = '"' + label.replace('"', "") + '"'
+            query += f" label:{label}"
 
         logger.debug("Gmail: querying %r", query)
         try:
@@ -118,6 +121,10 @@ class GmailProvider:
 
         try:
             received_at = email.utils.parsedate_to_datetime(date_str)
+            if received_at.tzinfo is None:  # "-0000" header: UTC by convention
+                received_at = received_at.replace(tzinfo=timezone.utc)
+            else:
+                received_at = received_at.astimezone(timezone.utc)
         except Exception:
             logger.debug("Gmail: could not parse date %r for %s, using now()", date_str, message_id)
             received_at = datetime.now(tz=timezone.utc)

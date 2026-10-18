@@ -149,14 +149,23 @@ def _process_rule(
             continue
 
         if not dry_run:
-            log.record(
-                message_id=msg_id,
-                sender=email.sender,
-                subject=email.subject,
-                received_at=email.received_at,
-                verdict=verdict,
-                action_taken=action,
-            )
+            try:
+                log.record(
+                    message_id=msg_id,
+                    sender=email.sender,
+                    subject=email.subject,
+                    received_at=email.received_at,
+                    verdict=verdict,
+                    action_taken=action,
+                )
+            except Exception as exc:
+                # The Gmail action was already applied, so the next run will
+                # re-classify this message (it isn't in the log) — acceptable.
+                logger.error("Processor: failed to record decision for %s: %s", msg_id, exc)
+                if on_error:
+                    on_error(f"recording decision for {msg_id}", exc)
+                result.errors += 1
+                continue
 
         result.processed += 1
         if verdict.verdict == "relevant":

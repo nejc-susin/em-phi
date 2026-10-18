@@ -163,3 +163,38 @@ def test_missing_api_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
         ClaudeClassifier(LLMConfig())
+
+
+def test_build_prompt_converts_offset_to_utc(relevant_email, sample_rule) -> None:
+    from dataclasses import replace
+    from datetime import datetime, timedelta, timezone
+
+    from em_phi.classifiers.claude import build_prompt
+
+    tz = timezone(timedelta(hours=-7))
+    email = replace(relevant_email, received_at=datetime(2026, 5, 1, 9, 0, tzinfo=tz))
+    _, user = build_prompt(email, sample_rule)
+    assert "2026-05-01 16:00 UTC" in user
+
+
+def test_build_prompt_naive_datetime_treated_as_utc(relevant_email, sample_rule) -> None:
+    from dataclasses import replace
+    from datetime import datetime
+
+    from em_phi.classifiers.claude import build_prompt
+
+    email = replace(relevant_email, received_at=datetime(2026, 5, 1, 9, 0))
+    _, user = build_prompt(email, sample_rule)
+    assert "2026-05-01 09:00 UTC" in user
+
+
+def test_parse_non_object_json_raises_value_error() -> None:
+    with pytest.raises(ValueError):
+        _parse_verdict('["relevant"]')
+    with pytest.raises(ValueError):
+        _validate(["relevant"])  # type: ignore[arg-type]
+
+
+def test_parse_falls_through_after_non_object_json() -> None:
+    v = _parse_verdict('"x" {"verdict": "relevant", "confidence": "high", "reason": "r"}')
+    assert v.verdict == "relevant"
