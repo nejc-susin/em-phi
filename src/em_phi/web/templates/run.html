@@ -2,16 +2,67 @@
 {% block title %}Run — em-phi{% endblock %}
 {% block content %}
 {% set active = "run" %}
+{% set state_text = {"ok": "text-green-700", "bad": "text-red-700", "neutral": "text-gray-700"} %}
+{% set run_badge = {
+  "ok": "bg-green-100 text-green-800",
+  "errors": "bg-amber-100 text-amber-800",
+  "failed": "bg-red-100 text-red-800",
+  "running": "bg-blue-100 text-blue-800",
+} %}
+{% macro run_counts(run) -%}
+{{ run.processed }} processed, {{ run.relevant }} relevant, {{ run.irrelevant }} irrelevant, {{ run.skipped }} skipped{% if run.errors %}, {{ run.errors }} errors{% endif %}
+{%- endmacro %}
+{% macro run_problems(run) -%}
+{% if run.failure %}<p class="text-red-700 whitespace-pre-line">{{ run.failure }}</p>{% endif %}
+{% if run.error_messages %}
+<ul class="mt-1 space-y-1 text-amber-800">
+  {% for message in run.error_messages %}<li class="break-words">{{ message }}</li>{% endfor %}
+</ul>
+{% endif %}
+{%- endmacro %}
 
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-xl font-semibold text-gray-900">Run</h1>
-  {% if last_run %}
-  <p class="text-sm text-gray-500">
-    Last run: {{ last_run.finished_at.strftime('%Y-%m-%d %H:%M') }} UTC
-    — {{ last_run.summary.processed }} processed,
-    {{ last_run.summary.relevant }} relevant{% if last_run.dry_run %} <span class="text-amber-600">(dry run)</span>{% endif %}
-  </p>
-  {% endif %}
+</div>
+
+<!-- Status -->
+<div id="status" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  {% for card in [status.gmail, status.claude, status.schedule] %}
+  <div class="bg-white shadow rounded-lg px-4 py-3">
+    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ card.title }}</p>
+    <p class="mt-1 text-sm font-medium {{ state_text[card.state] }}">{{ card.summary }}</p>
+    {% for line in card.details %}
+    <p class="text-xs text-gray-500 mt-0.5">{{ line }}</p>
+    {% endfor %}
+    {% if card.hint %}
+    <p class="text-xs text-gray-500 mt-0.5">{{ card.hint }}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="bg-white shadow rounded-lg px-4 py-3">
+    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Last run</p>
+    {% set run = status.last_run %}
+    {% if run %}
+    <p class="mt-1 text-sm text-gray-900">
+      <span class="text-xs font-medium px-2 py-0.5 rounded {{ run_badge.get(run.status, 'bg-gray-100 text-gray-600') }}">{{ run.status }}</span>
+      {{ run.started_at[:16] }} UTC
+    </p>
+    <p class="text-xs text-gray-500 mt-0.5">
+      {{ run.trigger }}{% if run.dry_run %} <span class="text-amber-600">(dry run)</span>{% endif %}
+    </p>
+    <p class="text-xs text-gray-500 mt-0.5">{{ run_counts(run) }}</p>
+    {% if run.failure or run.error_messages %}
+    <details class="mt-1 text-xs">
+      <summary class="cursor-pointer {% if run.status == 'failed' %}text-red-700{% else %}text-amber-700{% endif %}">
+        {% if run.status == 'failed' %}Failure{% else %}Errors{% endif %}
+      </summary>
+      <div class="mt-1">{{ run_problems(run) }}</div>
+    </details>
+    {% endif %}
+    {% else %}
+    <p class="mt-1 text-sm text-gray-700">No runs yet</p>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Controls -->
@@ -39,6 +90,63 @@
 <!-- Results -->
 <div id="results" class="space-y-2"></div>
 <div id="summary" class="hidden mt-4 bg-gray-50 border border-gray-200 rounded-lg px-5 py-4 text-sm text-gray-700"></div>
+
+<!-- Recent runs -->
+<h2 class="text-sm font-semibold text-gray-900 mt-8 mb-3">Recent runs</h2>
+{% if status.recent_runs %}
+<div class="bg-white shadow rounded-lg overflow-x-auto">
+  <table id="recent-runs" class="min-w-full text-sm">
+    <thead class="bg-gray-50 text-xs text-gray-500 text-left">
+      <tr>
+        <th class="px-4 py-2 font-medium">Started (UTC)</th>
+        <th class="px-4 py-2 font-medium">Trigger</th>
+        <th class="px-4 py-2 font-medium">Rules</th>
+        <th class="px-4 py-2 font-medium text-right">Processed</th>
+        <th class="px-4 py-2 font-medium text-right">Relevant</th>
+        <th class="px-4 py-2 font-medium text-right">Irrelevant</th>
+        <th class="px-4 py-2 font-medium text-right">Skipped</th>
+        <th class="px-4 py-2 font-medium text-right">Errors</th>
+        <th class="px-4 py-2 font-medium">Status</th>
+        <th class="px-4 py-2 font-medium">Duration</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for run in status.recent_runs %}
+      <tr>
+        <td class="px-4 py-2 whitespace-nowrap text-gray-700">{{ run.started_at[:16] }}</td>
+        <td class="px-4 py-2 whitespace-nowrap text-gray-700">
+          {{ run.trigger }}{% if run.dry_run %} <span class="text-xs text-amber-600">dry run</span>{% endif %}
+        </td>
+        <td class="px-4 py-2 text-gray-700">{{ run.rule_filter or "all" }}</td>
+        <td class="px-4 py-2 text-right text-gray-700">{{ run.processed }}</td>
+        <td class="px-4 py-2 text-right text-gray-700">{{ run.relevant }}</td>
+        <td class="px-4 py-2 text-right text-gray-700">{{ run.irrelevant }}</td>
+        <td class="px-4 py-2 text-right text-gray-700">{{ run.skipped }}</td>
+        <td class="px-4 py-2 text-right {% if run.errors %}text-amber-700{% else %}text-gray-700{% endif %}">{{ run.errors }}</td>
+        <td class="px-4 py-2">
+          <span class="text-xs font-medium px-2 py-0.5 rounded {{ run_badge.get(run.status, 'bg-gray-100 text-gray-600') }}">{{ run.status }}</span>
+        </td>
+        <td class="px-4 py-2 whitespace-nowrap text-gray-700">{{ run.duration_text }}</td>
+      </tr>
+      {% if run.failure or run.error_messages %}
+      <tr>
+        <td colspan="10" class="px-4 pb-2 pt-0 text-xs">
+          <details>
+            <summary class="cursor-pointer {% if run.status == 'failed' %}text-red-700{% else %}text-amber-700{% endif %}">
+              {% if run.failure %}Failure{% else %}{{ run.error_messages|length }} error message{{ "s" if run.error_messages|length != 1 }}{% endif %}
+            </summary>
+            <div class="mt-1">{{ run_problems(run) }}</div>
+          </details>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-sm text-gray-500">No runs yet</p>
+{% endif %}
 
 <script>
 let eventSource = null;
@@ -96,7 +204,13 @@ function startRun() {
       btn.disabled = false;
       btn.textContent = 'Run now';
       summary.classList.remove('hidden');
-      summary.textContent = `Done — ${data.processed} processed, ${data.relevant} relevant, ${data.irrelevant} irrelevant, ${data.skipped} skipped${data.errors ? ', ' + data.errors + ' errors' : ''}`;
+      summary.textContent = `Done — ${data.processed} processed, ${data.relevant} relevant, ${data.irrelevant} irrelevant, ${data.skipped} skipped${data.errors ? ', ' + data.errors + ' errors' : ''} `;
+      // Reload on request only: an automatic reload would wipe the streamed results.
+      const refresh = document.createElement('a');
+      refresh.href = '/run';
+      refresh.className = 'text-indigo-600 hover:text-indigo-800 ml-2';
+      refresh.textContent = 'Refresh';
+      summary.appendChild(refresh);
     }
   };
 

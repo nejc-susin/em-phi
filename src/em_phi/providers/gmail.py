@@ -3,8 +3,10 @@ from __future__ import annotations
 import base64
 import email.message
 import email.utils
+import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -21,6 +23,37 @@ logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 _MAX_RESULTS = 100
+
+_REAUTH_HINT = "Run oauth/authorize.py (see docs/gmail-setup.md)"
+
+
+@dataclass
+class TokenStatus:
+    ok: bool
+    summary: str
+    hint: str | None = None
+
+
+def token_status(token_file: Path) -> TokenStatus:
+    """Check token.json locally, without any network call.
+
+    An expired access token counts as ok: it is refreshed on the next run.
+    """
+    if not token_file.exists():
+        return TokenStatus(False, "token.json not found", _REAUTH_HINT)
+    try:
+        data = json.loads(token_file.read_text())
+    except (OSError, UnicodeDecodeError, ValueError):
+        return TokenStatus(False, "token.json is unreadable", _REAUTH_HINT)
+    if not isinstance(data, dict):
+        return TokenStatus(False, "token.json is unreadable", _REAUTH_HINT)
+    if not data.get("refresh_token"):
+        return TokenStatus(False, "token has no refresh token", _REAUTH_HINT)
+    try:
+        Credentials.from_authorized_user_file(str(token_file), SCOPES)
+    except Exception:
+        return TokenStatus(False, "token.json is unreadable", _REAUTH_HINT)
+    return TokenStatus(True, "Connected")
 
 
 class GmailProvider:

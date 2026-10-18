@@ -11,6 +11,7 @@ from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
 from em_phi.processor import RuleResult, RunSummary, process_all
 from em_phi.providers.base import EmailProvider
+from em_phi.run_log import RunLog, RunRecord, RunRecorder
 
 
 @click.group()
@@ -166,19 +167,6 @@ def run_cmd(ctx: click.Context, dry_run: bool, rule: str | None) -> None:
                 f"Rule '{rule}' not found in config.\nKnown rules: {', '.join(sorted(known))}"
             )
 
-    provider = _build_provider(config)
-    try:
-        provider.authenticate()
-    except RuntimeError as e:
-        raise click.ClickException(str(e))
-
-    try:
-        classifier = _build_classifier(config)
-    except RuntimeError as e:
-        raise click.ClickException(str(e))
-
-    log = DecisionLog(config.decision_log.path)
-
     def on_email(email: Email, verdict: Verdict, action: str, is_dry: bool) -> None:
         verdict_tag = f"{verdict.verdict:<11} / {verdict.confidence:<6}"
         dry_tag = "[DRY RUN] " if is_dry else ""
@@ -194,20 +182,99 @@ def run_cmd(ctx: click.Context, dry_run: bool, rule: str | None) -> None:
         click.echo(f"  Done: {_format_counts(result)}")
         click.echo()
 
-    summary = process_all(
-        config=config,
-        provider=provider,
-        classifier=classifier,
-        log=log,
-        dry_run=dry_run,
-        rule_filter=rule,
-        on_email=on_email,
-        on_error=on_error,
-        on_rule_start=on_rule_start,
-        on_rule_done=on_rule_done,
+    # Recorded in the run history (`em-phi runs`, web Run page); a failure to
+    # write it is logged and never stops the run.
+    recorder = RunRecorder(
+        config.decision_log.path, trigger="cli", dry_run=dry_run, rule_filter=rule, on_error=on_error
     )
+    try:
+        provider = _build_provider(config)
+        try:
+            provider.authenticate()
+        except RuntimeError as e:
+            raise click.ClickException(str(e))
+
+        try:
+            classifier = _build_classifier(config)
+        except RuntimeError as e:
+            raise click.ClickException(str(e))
+
+        log = DecisionLog(config.decision_log.path)
+        if not dry_run:
+            log.backfill_rule_names(config.rules)
+
+        summary = process_all(
+            config=config,
+            provider=provider,
+            classifier=classifier,
+            log=log,
+            dry_run=dry_run,
+            rule_filter=rule,
+            on_email=on_email,
+            on_error=recorder.errors,
+            on_rule_start=on_rule_start,
+            on_rule_done=on_rule_done,
+        )
+    except BaseException as exc:  # incl. Ctrl-C, so the run isn't left "running"
+        recorder.fail(exc)
+        raise
+    recorder.finish(summary)
 
     click.echo(f"Run complete: {_format_counts(summary)}")
+
+
+@cli.command("runs")
+@click.option("--limit", default=10, show_default=True, type=click.IntRange(min=1, max=200),
+              help="Maximum number of runs to show.")
+@click.pass_context
+def runs_cmd(ctx: click.Context, limit: int) -> None:
+    """Show recent runs (web, scheduled and CLI) from the run history."""
+    config_path: Path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    db_path = config.decision_log.path
+    runs = RunLog(db_path).recent(limit) if db_path.exists() else []
+    if not runs:
+        click.echo("No runs recorded yet.")
+        return
+
+    click.echo(
+        f"{'Started (UTC)':<16}  {'Trigger':<9}  {'Dry':<3}  {'Rules':<24}  "
+        f"{'Proc':>4}  {'Rel':>4}  {'Irr':>4}  {'Skip':>4}  {'Err':>4}  {'Status':<7}  Duration"
+    )
+    click.echo("-" * 106)
+    for run in runs:
+        rules = run.rule_filter or "all"
+        rules = (rules[:21] + "...") if len(rules) > 24 else rules
+        click.echo(
+            f"{run.started_at[:16]:<16}  {run.trigger:<9}  {'dry' if run.dry_run else '':<3}  {rules:<24}  "
+            f"{run.processed:>4}  {run.relevant:>4}  {run.irrelevant:>4}  {run.skipped:>4}  {run.errors:>4}  "
+            f"{run.status:<7}  {run.duration_text}"
+        )
+        for line in _run_problem_lines(run):
+            click.echo(f"    {line}")
+
+
+_RUNS_ERRORS_SHOWN = 5
+
+
+def _run_problem_lines(run: RunRecord) -> list[str]:
+    lines: list[str] = []
+    if run.failure:
+        failure_lines = run.failure.splitlines() or [run.failure]
+        lines.append(f"Failure: {failure_lines[0]}")
+        lines.extend(f"         {extra}" for extra in failure_lines[1:])
+    shown = run.error_messages[:_RUNS_ERRORS_SHOWN]
+    lines.extend(f"Error: {message}" for message in shown)
+    # error_messages is capped, so the error count can be the larger number.
+    more = max(run.errors, len(run.error_messages)) - len(shown)
+    if more > 0 and shown:
+        lines.append(f"… and {more} more")
+    return lines
 
 
 def _format_counts(counts: RuleResult | RunSummary) -> str:

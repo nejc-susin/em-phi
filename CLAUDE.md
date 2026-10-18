@@ -59,6 +59,7 @@ src/em_phi/
 ├── debug.py         # Prompt inspector behind `em-phi debug` and the web debug page
 ├── actions.py       # Applies verdicts to Gmail via the provider
 ├── decision_log.py  # SQLite decision log (also tracks processed message IDs)
+├── run_log.py       # Run history (`runs` table in the same SQLite file) + error collector
 ├── providers/
 │   ├── base.py      # EmailProvider Protocol (@runtime_checkable)
 │   └── gmail.py     # GmailProvider — OAuth2, fetch, label, archive
@@ -87,6 +88,8 @@ src/em_phi/
 **Protocol-based modularity.** `providers/base.py` and `classifiers/base.py` define `@runtime_checkable` Protocols. The processor imports only from `base.py`. Adding a new provider or classifier means adding a new file and implementing the Protocol — no other changes needed.
 
 **SQLite does double duty.** `decision_log.py` is both the human-readable audit log and the deduplication mechanism. `is_processed(message_id)` is an O(1) lookup used at the top of the processing loop to skip already-seen emails across runs.
+
+**Run history.** `run_log.py` keeps one row per run in the `runs` table of the same SQLite file as the decision log. Every run is recorded — web manual (`manual`), web scheduler (`scheduled`) and `em-phi run` (`cli`), dry runs included — with counts, status and the per-email error messages. `RunRecorder` swallows (and logs) its own write failures: run history must never break a run.
 
 **Prompt caching per rule.** In `classifiers/claude.py`, the system prompt contains the rule's interest profile and tolerance (constant per rule) and is marked `cache_control: ephemeral`. Prompts shorter than the model's minimum cacheable length (512 tokens for Claude Haiku 5.5) silently don't cache, which is the case for most rules' short interest profiles. It's harmless, but not a guaranteed saving.
 

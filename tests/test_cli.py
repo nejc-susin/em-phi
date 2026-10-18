@@ -196,3 +196,86 @@ def test_serve_is_quiet_about_a_strong_auth_token(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "WARNING" not in result.output
+
+
+# ------------------------------------------------------------------ run history
+
+
+def test_runs_without_a_database_says_so_and_does_not_create_it(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+
+    result = CliRunner().invoke(cli, ["--config", str(config_path), "runs"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == "No runs recorded yet."
+    assert not (tmp_path / "decisions.db").exists()
+
+
+def test_run_is_recorded_and_listed_by_runs(tmp_path: Path, relevant_email, relevant_verdict) -> None:
+    from unittest.mock import MagicMock
+
+    config_path = _write_config(tmp_path)
+    provider = MagicMock()
+    provider.fetch_unread.return_value = ["msg001"]
+    provider.get_message.return_value = relevant_email
+    classifier = MagicMock()
+    classifier.classify.return_value = relevant_verdict
+    runner = CliRunner()
+
+    with patch("em_phi.cli._configure_logging"), \
+         patch("em_phi.cli._build_provider", return_value=provider), \
+         patch("em_phi.cli._build_classifier", return_value=classifier):
+        run = runner.invoke(cli, ["--config", str(config_path), "run", "--dry-run"])
+    assert run.exit_code == 0, run.output
+
+    result = runner.invoke(cli, ["--config", str(config_path), "runs"])
+
+    assert result.exit_code == 0, result.output
+    header, rule, row = result.output.splitlines()
+    assert header.startswith("Started (UTC)")
+    assert set(rule) == {"-"}
+    fields = row.split()
+    assert fields[2:5] == ["cli", "dry", "all"]
+    assert fields[5:10] == ["1", "1", "0", "0", "0"]
+    assert fields[10] == "ok"
+
+
+def test_failed_run_is_recorded_with_its_errors(tmp_path: Path) -> None:
+    from unittest.mock import MagicMock
+
+    from em_phi.processor import RuleResult, RunSummary
+    from em_phi.run_log import RunLog
+
+    config_path = _write_config(tmp_path)
+    provider = MagicMock()
+    provider.authenticate.side_effect = RuntimeError("Token not found: token.json\nSee docs/gmail-setup.md")
+
+    with patch("em_phi.cli._configure_logging"), \
+         patch("em_phi.cli._build_provider", return_value=provider):
+        run = CliRunner().invoke(cli, ["--config", str(config_path), "run"])
+    assert run.exit_code == 1
+    assert "Token not found" in run.output
+
+    log = RunLog(tmp_path / "decisions.db")
+    with_errors = log.start(trigger="scheduled", dry_run=False, rule_filter="newsletter@example.com")
+    log.finish(
+        with_errors,
+        RunSummary(results=[RuleResult(rule_email="newsletter@example.com", errors=7)]),
+        [f"processing message m{i}: boom" for i in range(7)],
+    )
+
+    result = CliRunner().invoke(cli, ["--config", str(config_path), "runs", "--limit", "5"])
+
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert "scheduled" in lines[2] and "newsletter@example.com" in lines[2] and "errors" in lines[2]
+    assert lines[3:9] == [f"    Error: processing message m{i}: boom" for i in range(5)] + ["    … and 2 more"]
+    assert "cli" in lines[9] and "failed" in lines[9]
+    assert lines[10] == "    Failure: Token not found: token.json"
+    assert lines[11] == "             See docs/gmail-setup.md"
+
+
+def test_runs_limit_is_bounded(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    result = CliRunner().invoke(cli, ["--config", str(config_path), "runs", "--limit", "201"])
+    assert result.exit_code == 2

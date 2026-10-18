@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 
 from em_phi.config import AppConfig, is_weak_auth_token
 from em_phi.decision_log import DecisionLog
+from em_phi.run_log import RunLog
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
@@ -58,6 +59,10 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
             DecisionLog(state.config.decision_log.path).backfill_rule_names(state.config.rules)
         except Exception as exc:
             logger.warning("Could not backfill rule names in the decision log: %s", exc)
+        try:
+            RunLog(state.config.decision_log.path).mark_interrupted()
+        except Exception as exc:
+            logger.warning("Could not mark interrupted runs in the run log: %s", exc)
         scheduler.start(state.config, scheduled_run)
         yield
         scheduler.shutdown()
@@ -130,7 +135,7 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     from em_phi.web.routes import run as run_routes
 
     app.include_router(config_routes.router(state, templates, scheduler, scheduled_run))
-    app.include_router(run_routes.router(state, templates))
+    app.include_router(run_routes.router(state, templates, scheduler))
     app.include_router(log_routes.router(state, templates))
     app.include_router(debug_routes.router(state, templates))
 

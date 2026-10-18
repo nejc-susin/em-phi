@@ -87,6 +87,7 @@ To run em-phi always-on with a dashboard and built-in scheduler, see [Web UI](#w
 | `em-phi debug` | Fetch the first unread email and print the exact prompt that would be sent to Claude |
 | `em-phi debug --rule EMAIL` | Debug a specific rule |
 | `em-phi debug --limit N` | Inspect the first N unread emails |
+| `em-phi runs` | Show recent runs (web, scheduled and CLI) with counts, status and any errors (last 10; `--limit N` for more) |
 | `em-phi serve` | Start the web UI (dashboard, log viewer, config editor) with the built-in scheduler; needs a `web:` block in the config |
 
 Global option: `--config PATH` (default: `config.yaml`, overridden by `EM_PHI_CONFIG` env var).
@@ -133,7 +134,7 @@ Use cases:
 
 Pages:
 
-- **Run** — run now, dry run, or run a single rule, with verdicts streamed live as emails are classified
+- **Run** — run now, dry run, or run a single rule, with verdicts streamed live as emails are classified; a status panel (Gmail token, Claude API key, schedule, last run) and the recent run history, including errors from scheduled runs
 - **Log** — the decision log, filterable by rule, days, verdict, action and text, with paging
 - **Debug** — prompt inspector, the web version of `em-phi debug`
 - **Config** — edit rules, schedule and settings. Saving rewrites `config.yaml` and drops any comments in it

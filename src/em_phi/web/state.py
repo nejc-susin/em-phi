@@ -1,19 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from em_phi.config import AppConfig
 from em_phi.processor import RunSummary
-
-
-@dataclass
-class LastRun:
-    summary: RunSummary
-    dry_run: bool
-    finished_at: datetime  # timezone-aware UTC
 
 
 class AppState:
@@ -27,7 +18,6 @@ class AppState:
         self.run_lock: asyncio.Lock = asyncio.Lock()
         # Strong reference to the in-flight run task so it isn't garbage-collected.
         self.current_run: asyncio.Task[RunSummary] | None = None
-        self.last_run: LastRun | None = None
 
     @property
     def is_running(self) -> bool:
