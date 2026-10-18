@@ -31,7 +31,7 @@ def test_valid_config_loads(tmp_path: Path) -> None:
     p = _write_config(tmp_path, _VALID_DATA)
     config = load_config(p)
     assert config.rules[0].email == ["news@example.com"]
-    assert config.llm.model == "claude-haiku-4-5-20251001"
+    assert config.llm.model == "claude-haiku-5-5"
     assert config.email_provider.name == "gmail"
 
 

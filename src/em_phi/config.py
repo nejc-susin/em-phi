@@ -39,7 +39,7 @@ class LLMConfig(BaseModel):
     """Config for the LLM classifier."""
 
     name: str = "claude"
-    model: str = "claude-haiku-4-5-20251001"
+    model: str = "claude-haiku-5-5"
     max_tokens: int = 256
 
 

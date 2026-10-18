@@ -118,14 +118,14 @@
       <label class="block text-xs font-medium text-gray-600 mb-1">Claude model</label>
       <select name="model" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         {% set models = [
-          ("claude-haiku-4-5-20251001", "Haiku 4.5 — fast & cheap (recommended)"),
-          ("claude-sonnet-4-6",         "Sonnet 4.6 — balanced"),
-          ("claude-opus-4-7",           "Opus 4.7 — most capable"),
+          ("claude-haiku-5-5", "Haiku 5.5 — fast & cheap (recommended)"),
+          ("claude-sonnet-5-5",         "Sonnet 5.5 — balanced"),
+          ("claude-opus-5-5",           "Opus 5.5 — most capable"),
         ] %}
         {% for value, label in models %}
         <option value="{{ value }}" {% if config.llm.model == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
-        {% if config.llm.model not in ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"] %}
+        {% if config.llm.model not in ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"] %}
         <option value="{{ config.llm.model }}" selected>{{ config.llm.model }}</option>
         {% endif %}
       </select>

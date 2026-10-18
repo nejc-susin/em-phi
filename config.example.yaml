@@ -16,7 +16,7 @@ email_provider:
 # create(config) -> Classifier, then set name: myclassifier here.
 llm:
   name: claude
-  model: claude-haiku-4-5-20251001     # Claude Haiku is recommended for cost efficiency
+  model: claude-haiku-5-5     # Claude Haiku is recommended for cost efficiency
   max_tokens: 256
 
 labels:

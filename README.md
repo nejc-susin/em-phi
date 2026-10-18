@@ -128,7 +128,7 @@ gmail:
   token_file: token.json               # path to saved refresh token
 
 anthropic:
-  model: claude-haiku-4-5-20251001     # Claude model to use
+  model: claude-haiku-5-5     # Claude model to use
   max_tokens: 256                      # max tokens in Claude's response
 
 labels:
