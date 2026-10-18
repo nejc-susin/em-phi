@@ -10,7 +10,7 @@ import click
 from fastapi.testclient import TestClient
 
 from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, RuleConfig, WebConfig
-from em_phi.web.app import create_app
+from em_phi.web.app import _session_value, create_app
 from em_phi.web.routes.run import _start_run, _start_stream, execute_run
 from em_phi.web.state import AppState
 
@@ -37,7 +37,7 @@ def _make_client(tmp_path: Path) -> tuple[TestClient, AppState]:
     with patch("em_phi.web.app.AppState", side_effect=capture):
         app = create_app(_make_config(tmp_path), tmp_path / "config.yaml")
     client = TestClient(app)
-    client.cookies.set("em_phi_auth", "secret")
+    client.cookies.set("em_phi_auth", _session_value("secret"))
     return client, states[0]
 
 

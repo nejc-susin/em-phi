@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, RuleConfig, WebConfig
-from em_phi.web.app import create_app
+from em_phi.web.app import _session_value, create_app
 
 _EXTERNAL_HOSTS = ("cdn.tailwindcss.com", "unpkg.com")
 _STATIC_ASSETS = ("/static/tailwind.js", "/static/htmx.min.js", "/static/htmx-sse.js")
@@ -38,7 +38,7 @@ def test_login_page_has_no_external_cdn_references(tmp_path: Path) -> None:
 
 def test_authenticated_pages_have_no_external_cdn_references(tmp_path: Path) -> None:
     client = _make_client(tmp_path)
-    client.cookies.set("em_phi_auth", "secret")
+    client.cookies.set("em_phi_auth", _session_value("secret"))
 
     response = client.get("/run")
     assert response.status_code == 200

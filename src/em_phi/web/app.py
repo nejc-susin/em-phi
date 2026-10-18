@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -16,6 +18,23 @@ from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState, LastRun
 
 logger = logging.getLogger(__name__)
+
+# Sec-Fetch-Site is sent by modern browsers on every request. Anything other
+# than same-origin/none (typed URL, bookmark) is a cross-site request.
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_SAFE_FETCH_SITES = {"same-origin", "none"}
+# GET /run/stream starts a real run that labels/archives mail. Lax cookies are
+# sent on cross-site top-level GET navigations, so it needs the check too.
+_CROSS_SITE_CHECKED_GET_PATHS = {"/run/stream"}
+
+
+def _session_value(token: str) -> str:
+    """Cookie value derived from the auth token, so the raw token never leaves the server."""
+    return hmac.new(token.encode(), b"em-phi-session", hashlib.sha256).hexdigest()
+
+
+def _safe_equals(a: str, b: str) -> bool:
+    return hmac.compare_digest(a.encode(), b.encode())
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -50,10 +69,19 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
         # Static assets (vendored JS, no external CDN calls) must load
         # before the user has a valid auth cookie — the login page itself
         # needs them.
-        if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/static/"):
+        path = request.url.path
+        fetch_site = request.headers.get("sec-fetch-site")
+        if (
+            fetch_site is not None
+            and fetch_site not in _SAFE_FETCH_SITES
+            and (request.method not in _SAFE_METHODS or path in _CROSS_SITE_CHECKED_GET_PATHS)
+        ):
+            return Response("Cross-site request blocked", status_code=403)
+        if path in PUBLIC_PATHS or path.startswith("/static/"):
             return await call_next(request)
-        token = request.cookies.get(AUTH_COOKIE)
-        if token != state.config.web.auth_token:  # type: ignore[union-attr]
+        cookie = request.cookies.get(AUTH_COOKIE, "")
+        expected = _session_value(state.config.web.auth_token)  # type: ignore[union-attr]
+        if not _safe_equals(cookie, expected):
             return RedirectResponse(url=LOGIN_PATH)
         return await call_next(request)
 
@@ -65,9 +93,17 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     async def login_submit(request: Request):
         form = await request.form()
         token = str(form.get("token", ""))
-        if token == state.config.web.auth_token:  # type: ignore[union-attr]
+        if _safe_equals(token, state.config.web.auth_token):  # type: ignore[union-attr]
             response = RedirectResponse(url="/", status_code=303)
-            response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax")
+            # Behind a TLS-terminating proxy, uvicorn needs --proxy-headers
+            # (forwarded headers) for the scheme to be https here.
+            response.set_cookie(
+                AUTH_COOKIE,
+                _session_value(token),
+                httponly=True,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+            )
             return response
         return templates.TemplateResponse(
             request, "login.html", {"error": "Invalid token."}, status_code=401

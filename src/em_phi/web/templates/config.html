@@ -50,7 +50,7 @@
           <button onclick="toggleEdit({{ loop.index0 }})"
             class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Edit</button>
           <form method="post" action="/config/rule/{{ loop.index0 }}/delete"
-            onsubmit="return confirm('Delete rule {{ s.name }}?')" class="contents">
+            onsubmit='return confirm({{ ("Delete rule " ~ s.name ~ "?") | tojson }})' class="contents">
             <button type="submit" class="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
           </form>
         </div>

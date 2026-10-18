@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, RuleConfig, WebConfig
-from em_phi.web.app import create_app
+from em_phi.web.app import _session_value, create_app
 
 
 def _make_client(tmp_path: Path) -> TestClient:
@@ -21,7 +21,7 @@ def _make_client(tmp_path: Path) -> TestClient:
     )
     app = create_app(config, tmp_path / "config.yaml")
     client = TestClient(app)
-    client.cookies.set("em_phi_auth", "secret")
+    client.cookies.set("em_phi_auth", _session_value("secret"))
     return client
 
 

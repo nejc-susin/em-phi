@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from em_phi.config import AppConfig, ScheduleConfig, load_config
-from em_phi.web.app import create_app
+from em_phi.web.app import _session_value, create_app
 from em_phi.web.scheduler import EmPhiScheduler
 
 CONFIG_YAML = """\
@@ -42,7 +42,7 @@ def _setup(tmp_path: Path) -> tuple[TestClient, Path]:
     config_path.chmod(0o600)
     app = create_app(load_config(config_path), config_path)
     client = TestClient(app)
-    client.cookies.set("em_phi_auth", "secret")
+    client.cookies.set("em_phi_auth", _session_value("secret"))
     return client, config_path
 
 
