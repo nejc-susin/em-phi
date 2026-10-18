@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, ValidationError
 
 
 class ConfigError(Exception):
@@ -98,8 +98,23 @@ class RuleConfig(BaseModel):
 
 class ScheduleConfig(BaseModel):
     enabled: bool = False
-    interval_hours: int | None = 6
+    interval_hours: int | None = Field(default=6, ge=1)
     cron: str | None = None  # takes precedence over interval_hours if set
+
+    @field_validator("cron", mode="before")
+    @classmethod
+    def validate_cron(cls, v: object) -> str | None:
+        if v is None or not str(v).strip():
+            return None
+        v = str(v).strip()
+        # Validate here so a bad expression fails at load time, not when the
+        # scheduler is (re)started. Imported lazily to keep config.py light.
+        from apscheduler.triggers.cron import CronTrigger
+        try:
+            CronTrigger.from_crontab(v)
+        except ValueError as e:
+            raise ValueError(f"invalid cron expression {v!r}: {e}") from e
+        return v
 
 
 class WebConfig(BaseModel):

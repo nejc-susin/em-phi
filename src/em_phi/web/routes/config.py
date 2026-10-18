@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -37,7 +40,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
                 tolerance=str(form.get("tolerance", "balanced")),
                 action=str(form.get("action", "label")),
             )
-            config = state.config
+            config = state.config.model_copy(deep=True)
             config.rules = [*config.rules, new_rule]
             _save_and_reload(state, config, scheduler)
         except Exception as exc:
@@ -58,13 +61,13 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             if index < 0 or index >= len(rules):
                 raise ValueError(f"Invalid rule index {index}")
             rules[index] = RuleConfig(
-                email=str(form.get("email", "")).strip(),
+                email=_parse_emails(str(form.get("email", ""))),
                 name=str(form.get("name", "")).strip(),
                 interests=str(form.get("interests", "")).strip(),
                 tolerance=str(form.get("tolerance", "balanced")),
                 action=str(form.get("action", "label")),
             )
-            config = state.config
+            config = state.config.model_copy(deep=True)
             config.rules = rules
             _save_and_reload(state, config, scheduler)
         except Exception as exc:
@@ -81,22 +84,29 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
         rules = list(state.config.rules)
         if 0 <= index < len(rules):
             rules.pop(index)
-            config = state.config
+            config = state.config.model_copy(deep=True)
             config.rules = rules
-            _save_and_reload(state, config, scheduler)
+            try:
+                _save_and_reload(state, config, scheduler)
+            except Exception as exc:
+                return templates.TemplateResponse(request, "config.html", {
+                    "config": state.config,
+                    "saved": None,
+                    "error": str(exc),
+                }, status_code=422)
         return RedirectResponse(url="/config?saved=1", status_code=303)
 
     @r.post("/config/settings")
     async def save_settings(request: Request):
         form = await request.form()
         try:
-            from em_phi.config import DecisionLogConfig, LabelsConfig, LLMConfig, LoggingConfig
-            config = state.config
-            config.llm = LLMConfig(
-                name=config.llm.name,
-                model=str(form.get("model", config.llm.model)).strip(),
-                max_tokens=int(form.get("max_tokens") or 1024),
-            )
+            from em_phi.config import DecisionLogConfig, LabelsConfig, LoggingConfig
+            config = state.config.model_copy(deep=True)
+            # model_copy keeps llm.name (and any extra fields) intact
+            config.llm = config.llm.model_copy(update={
+                "model": str(form.get("model", config.llm.model)).strip(),
+                "max_tokens": int(form.get("max_tokens") or 1024),
+            })
             config.labels = LabelsConfig(
                 relevant=str(form.get("labels_relevant", "EmPhi/Relevant")).strip(),
                 irrelevant=str(form.get("labels_irrelevant", "EmPhi/Irrelevant")).strip(),
@@ -130,7 +140,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
                 interval_hours=int(form.get("interval_hours") or 6),
                 cron=str(form.get("cron", "")).strip() or None,
             )
-            config = state.config
+            config = state.config.model_copy(deep=True)
             config.schedule = sc
             _save_and_reload(state, config, scheduler)
         except Exception as exc:
@@ -150,9 +160,28 @@ def _parse_emails(raw: str) -> list[str]:
 
 
 def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiScheduler) -> None:
-    """Write config to disk (YAML) and reload state."""
-    _write_yaml(config, state.config_path)
-    reloaded = load_config(state.config_path)
+    """Validate and atomically write config to disk, then swap it into state.
+
+    The YAML goes to a temp file next to config.yaml and is loaded back with
+    load_config before it replaces the real file, so an invalid config never
+    reaches disk and the in-memory config only changes on success.
+    """
+    path = state.config_path
+    config_dir = path.resolve().parent
+    fd, tmp_name = tempfile.mkstemp(dir=config_dir, prefix=f".{path.name}.", suffix=".tmp")
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        # config.yaml holds web.auth_token — keep its permissions.
+        if path.exists():
+            shutil.copymode(path, tmp)
+        _write_yaml(config, tmp, config_dir)
+        reloaded = load_config(tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
     state.reload_config(reloaded)
 
     async def scheduled_run() -> None:
@@ -163,8 +192,18 @@ def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiSchedul
     logger.info("Config saved and reloaded: %s", state.config_path)
 
 
-def _write_yaml(config: AppConfig, path: Path) -> None:
-    """Serialize AppConfig back to YAML using ruamel.yaml and write atomically."""
+def _yaml_path(p: Path, config_dir: Path) -> str:
+    """Paths inside the config dir are written relative to it, others absolute."""
+    if not p.is_absolute():
+        return p.as_posix()
+    try:
+        return p.relative_to(config_dir).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def _write_yaml(config: AppConfig, path: Path, config_dir: Path) -> None:
+    """Serialize AppConfig to YAML at path using ruamel.yaml."""
     from ruamel.yaml import YAML
 
     data: dict = {
@@ -172,6 +211,7 @@ def _write_yaml(config: AppConfig, path: Path) -> None:
             "name": config.email_provider.name,
         },
         "llm": {
+            "name": config.llm.name,
             "model": config.llm.model,
             "max_tokens": config.llm.max_tokens,
         },
@@ -180,14 +220,13 @@ def _write_yaml(config: AppConfig, path: Path) -> None:
             "irrelevant": config.labels.irrelevant,
         },
         "decision_log": {
-            "path": str(config.decision_log.path),
+            "path": _yaml_path(config.decision_log.path, config_dir),
         },
         "logging": {
             "level": config.logging.level,
         },
         "schedule": {
             "enabled": config.schedule.enabled,
-            "interval_hours": config.schedule.interval_hours,
         },
         "rules": [
             {
@@ -204,13 +243,18 @@ def _write_yaml(config: AppConfig, path: Path) -> None:
     # Include optional fields
     ep = config.email_provider
     if ep.credentials_file:
-        data["email_provider"]["credentials_file"] = str(ep.credentials_file)
+        data["email_provider"]["credentials_file"] = _yaml_path(ep.credentials_file, config_dir)
     if ep.token_file:
-        data["email_provider"]["token_file"] = str(ep.token_file)
+        data["email_provider"]["token_file"] = _yaml_path(ep.token_file, config_dir)
     if ep.fetch_label:
         data["email_provider"]["fetch_label"] = ep.fetch_label
+    # Provider- and classifier-specific fields the models don't know about
+    data["email_provider"].update(ep.model_extra or {})
+    data["llm"].update(getattr(config.llm, "model_extra", None) or {})
     if config.logging.file:
-        data["logging"]["file"] = str(config.logging.file)
+        data["logging"]["file"] = _yaml_path(config.logging.file, config_dir)
+    if config.schedule.interval_hours is not None:
+        data["schedule"]["interval_hours"] = config.schedule.interval_hours
     if config.schedule.cron:
         data["schedule"]["cron"] = config.schedule.cron
     if config.web:
@@ -224,7 +268,5 @@ def _write_yaml(config: AppConfig, path: Path) -> None:
     yaml.default_flow_style = False
     yaml.width = 120
 
-    tmp = path.with_suffix(".yaml.tmp")
-    with tmp.open("w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         yaml.dump(data, f)
-    tmp.rename(path)
