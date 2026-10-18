@@ -279,3 +279,21 @@ def _add_unnamed(path: Path, message_id: str, sender: str) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def test_get_returns_the_logged_entry(tmp_db: Path) -> None:
+    log = DecisionLog(tmp_db)
+    _add(log, "m1", sender="Name <a@example.com>")
+    entry = log.get("m1")
+    assert entry is not None
+    assert entry.message_id == "m1"
+    assert entry.sender == "Name <a@example.com>"
+    assert entry.verdict == "relevant"
+    assert entry.confidence == "high"
+    assert entry.rule_name == "Example Newsletter"
+
+
+def test_get_returns_none_for_unknown_message(tmp_db: Path) -> None:
+    log = DecisionLog(tmp_db)
+    _add(log, "m1")
+    assert log.get("nope") is None

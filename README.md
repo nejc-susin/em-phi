@@ -120,7 +120,7 @@ Subject: Issue #456 — Python 3.14 is here
 ```
 
 Use cases:
-- **Tune your interest profile** — see exactly what Claude reads before adjusting `interests` in the config
+- **Tune your interest profile** — see exactly what Claude reads before adjusting `interests` in the config (the web UI's Playground can also re-classify recent mail with an edited profile)
 - **Check preprocessing** — verify that link stripping and truncation are leaving the right content
 - **Diagnose unexpected verdicts** — compare the prompt against Claude's reasoning in `em-phi log`
 
@@ -136,7 +136,7 @@ Pages:
 
 - **Run** — run now, dry run, or run a single rule, with verdicts streamed live as emails are classified; a status panel (Gmail token, Claude API key, schedule, last run) and the recent run history, including errors from scheduled runs
 - **Log** — the decision log, filterable by rule, days, verdict, action and text, with paging
-- **Debug** — prompt inspector, the web version of `em-phi debug`
+- **Playground** — tune a rule's interest profile: edit its interests and tolerance, re-classify that rule's mail from the last N days (read or unread) with the edited profile, see which verdicts would change compared to the decision log, then save the profile to the rule. Testing makes one Claude call per email and never labels, archives or writes the logs. The "Prompts only" mode skips Claude and just shows the prompts (it replaces the old Debug page; the CLI `em-phi debug` is unchanged)
 - **Config** — edit rules, schedule and settings. Saving rewrites `config.yaml` and drops any comments in it
 
 **Built-in scheduler.** Set `schedule.enabled: true` and either `interval_hours` or a `cron` expression (cron wins if both are set). The scheduler only runs in serve mode; `em-phi run` ignores it.

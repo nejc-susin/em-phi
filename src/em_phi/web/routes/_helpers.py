@@ -14,14 +14,6 @@ def parse_int(raw: str | None) -> int | None:
         return None
 
 
-def rule_options(config: AppConfig) -> list[tuple[str, str]]:
-    """(email address, rule name) pairs for the rule filter dropdowns, sorted by address."""
-    return sorted(
-        {(e, r.name) for r in config.rules for e in r.email},
-        key=lambda pair: pair[0],
-    )
-
-
 def rule_name_options(config: AppConfig) -> list[tuple[str, str]]:
     """(rule name, comma-joined addresses) pairs in config order, one per distinct name."""
     options: dict[str, str] = {}

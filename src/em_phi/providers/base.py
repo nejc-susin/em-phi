@@ -27,6 +27,15 @@ class EmailProvider(Protocol):
         """
         ...
 
+    def fetch_recent(self, patterns: list[str], days: int, limit: int) -> list[str]:
+        """Return IDs of messages from these senders received in the last `days` days.
+
+        Read or unread, newest first, at most `limit`. Used by the web Profile
+        playground to re-classify recent mail; nothing is modified.
+        Patterns are matched the same way as in fetch_unread.
+        """
+        ...
+
     def get_message(self, message_id: str) -> Email:
         """Fetch and return a fully-populated Email for the given message ID."""
         ...

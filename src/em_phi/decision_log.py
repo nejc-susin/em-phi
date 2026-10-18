@@ -159,6 +159,14 @@ class DecisionLog:
             ).fetchone()
         return row is not None
 
+    def get(self, message_id: str) -> LogEntry | None:
+        """The logged decision for message_id, or None if it was never processed."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM decisions WHERE message_id = ?", (message_id,)
+            ).fetchone()
+        return LogEntry(**dict(row)) if row is not None else None
+
     def record(
         self,
         *,

@@ -77,6 +77,42 @@ def test_fetch_includes_read_mail_when_configured() -> None:
     assert _query(p) == 'from:news@example.com newer_than:7d label:"To Filter"'
 
 
+def _max_results(p: GmailProvider) -> int:
+    return p._service.users().messages().list.call_args.kwargs["maxResults"]
+
+
+def test_fetch_recent_queries_read_and_unread_for_the_given_days() -> None:
+    p = _provider()  # unread_only=True must not leak into fetch_recent
+    p._service.users().messages().list().execute.return_value = {"messages": [{"id": "b"}, {"id": "a"}]}
+    assert p.fetch_recent(["news@example.com", "example.org"], 21, 10) == ["b", "a"]
+    assert _query(p) == "{from:news@example.com from:@example.org} newer_than:21d"
+    assert "is:unread" not in _query(p)
+    assert _max_results(p) == 10
+
+
+def test_fetch_recent_respects_fetch_label() -> None:
+    p = _provider("To Filter", lookback_days=3)
+    p._service.users().messages().list().execute.return_value = {}
+    assert p.fetch_recent(["news@example.com"], 14, 5) == []
+    assert _query(p) == 'from:news@example.com newer_than:14d label:"To Filter"'
+
+
+def test_fetch_recent_caps_max_results_at_100() -> None:
+    p = _provider()
+    p._service.users().messages().list().execute.return_value = {}
+    p.fetch_recent(["news@example.com"], 14, 500)
+    assert _max_results(p) == 100
+
+
+def test_fetch_recent_wraps_http_errors() -> None:
+    from googleapiclient.errors import HttpError
+
+    p = _provider()
+    p._service.users().messages().list().execute.side_effect = HttpError(MagicMock(status=500), b"boom")
+    with pytest.raises(RuntimeError, match="Gmail API error listing messages"):
+        p.fetch_recent(["news@example.com"], 14, 5)
+
+
 # ------------------------------------------------------------------ build_query
 
 

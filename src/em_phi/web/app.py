@@ -132,14 +132,14 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     # ------------------------------------------------------------------ routes
 
     from em_phi.web.routes import config as config_routes
-    from em_phi.web.routes import debug as debug_routes
     from em_phi.web.routes import log as log_routes
+    from em_phi.web.routes import playground as playground_routes
     from em_phi.web.routes import run as run_routes
 
     app.include_router(config_routes.router(state, templates, scheduler, scheduled_run))
     app.include_router(run_routes.router(state, templates, scheduler))
     app.include_router(log_routes.router(state, templates))
-    app.include_router(debug_routes.router(state, templates))
+    app.include_router(playground_routes.router(state, templates, scheduler, scheduled_run))
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):

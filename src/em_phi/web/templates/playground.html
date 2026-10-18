@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Playground — em-phi{% endblock %}
+{% block content %}
+{% set active = "playground" %}
+
+<h1 class="text-xl font-semibold text-gray-900 mb-1">Profile playground</h1>
+<p class="text-sm text-gray-500 mb-6">Edit a rule's interest profile, re-classify its recent mail, and compare with what was logged.</p>
+
+{% if saved %}
+<div class="bg-green-50 border border-green-200 rounded-lg px-5 py-3 text-sm text-green-800 mb-6">Profile saved to the rule.</div>
+{% endif %}
+{% if error %}
+<div class="bg-red-50 border border-red-200 rounded-lg px-5 py-3 text-sm text-red-700 mb-6 whitespace-pre-line">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/playground/test" class="bg-white shadow rounded-lg p-5 mb-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
+  <input type="hidden" name="rule_name" value="{{ rule_name }}">
+
+  <div class="sm:col-span-4">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Rule</label>
+    <!-- Switching rules reloads the page with that rule's saved profile (unsaved edits are discarded). -->
+    <select name="rule_index" onchange="location.href = '/playground?rule=' + encodeURIComponent(this.value)"
+      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      {% for index, name, addresses in rules %}
+      <option value="{{ index }}" {% if index == rule_index %}selected{% endif %}>{{ name }} &mdash; {{ addresses }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="sm:col-span-4">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Interest profile</label>
+    <textarea name="interests" rows="8"
+      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-y">{{ interests }}</textarea>
+  </div>
+
+  <div class="sm:col-span-2">
+    <label class="block text-xs font-medium text-gray-600 mb-1">Tolerance</label>
+    <select name="tolerance" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      {% set tols = [
+        ("aggressive",   "aggressive — archive unless clearly relevant"),
+        ("balanced",     "balanced — archive only clearly irrelevant"),
+        ("conservative", "conservative — keep anything slightly relevant"),
+      ] %}
+      {% for value, label in tols %}
+      <option value="{{ value }}" {% if tolerance == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Days</label>
+    <input name="days" type="number" min="{{ min_days }}" max="{{ max_days }}" value="{{ days }}"
+      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-gray-600 mb-1">Emails</label>
+    <input name="limit" type="number" min="{{ min_limit }}" max="{{ max_limit }}" value="{{ limit }}"
+      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+  </div>
+
+  <div class="sm:col-span-4">
+    <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+      <input name="prompts_only" type="checkbox" {% if prompts_only %}checked{% endif %}
+        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+      Prompts only (no Claude calls)
+    </label>
+  </div>
+
+  <div class="sm:col-span-4">
+    <div class="flex flex-wrap gap-2">
+      <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-1.5 rounded transition-colors">Test profile</button>
+      <button type="submit" formaction="/playground/save"
+        class="bg-gray-700 hover:bg-gray-800 text-white text-sm px-4 py-1.5 rounded transition-colors">Save profile to rule</button>
+    </div>
+    <p class="text-xs text-gray-400 mt-2">Testing makes one Claude call per email. Nothing in Gmail or the decision log is changed.</p>
+  </div>
+</form>
+
+{% if result is not none %}
+{% if result.fetch_errors %}
+<div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-xs text-red-700 mb-4">
+  <p class="font-medium mb-1">Some emails could not be fetched:</p>
+  <ul class="list-disc list-inside space-y-0.5">
+    {% for e in result.fetch_errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if result.items %}
+<div class="text-sm text-gray-500 mb-3">
+  {% if prompts_only %}
+  {{ summary.total }} prompt{{ '' if summary.total == 1 else 's' }} built (no Claude calls)
+  {% else %}
+  {{ summary.total }} email{{ '' if summary.total == 1 else 's' }} &middot; {{ summary.changed }} would change &middot; {{ summary.relevant }} relevant / {{ summary.irrelevant }} irrelevant (new){% if summary.errors %} &middot; <span class="text-red-600">{{ summary.errors }} error{{ '' if summary.errors == 1 else 's' }}</span>{% endif %}
+  {% endif %}
+</div>
+
+<div class="bg-white shadow rounded-lg overflow-hidden">
+  <table class="min-w-full divide-y divide-gray-200 text-sm">
+    <thead class="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Date</th>
+        <th class="px-4 py-3 text-left">Subject</th>
+        <th class="px-4 py-3 text-left">Logged</th>
+        <th class="px-4 py-3 text-left">New</th>
+        <th class="px-4 py-3 text-left">Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in result.items %}
+      {% set row_bg = "bg-amber-50" if item.changed else "" %}
+      <tr class="border-t border-gray-100 {{ row_bg }}" {% if item.changed %}data-changed="1"{% endif %}>
+        <td class="px-4 pt-3 pb-1 text-gray-500 whitespace-nowrap">{{ item.email.received_at.strftime('%Y-%m-%d %H:%M') }} UTC</td>
+        <td class="px-4 pt-3 pb-1 text-gray-900 max-w-[280px] truncate" title="{{ item.email.subject }}">
+          {%- set url = gmail_url(item.email.message_id) -%}
+          {%- if url %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="hover:underline">{{ item.email.subject }}</a>{% else %}{{ item.email.subject }}{% endif -%}
+        </td>
+        <td class="px-4 pt-3 pb-1 whitespace-nowrap">
+          {% if item.logged %}
+            {% if item.logged.verdict == 'relevant' %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">relevant · {{ item.logged.confidence }}</span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">irrelevant · {{ item.logged.confidence }}</span>
+            {% endif %}
+          {% else %}
+          <span class="text-xs text-gray-400">not processed</span>
+          {% endif %}
+        </td>
+        <td class="px-4 pt-3 pb-1 whitespace-nowrap">
+          {% if item.error %}
+          <span class="text-xs text-red-600 inline-block max-w-[220px] truncate align-middle" title="{{ item.error }}">{{ item.error }}</span>
+          {% elif item.verdict %}
+            {% if item.verdict.verdict == 'relevant' %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">relevant · {{ item.verdict.confidence }}</span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">irrelevant · {{ item.verdict.confidence }}</span>
+            {% endif %}
+            {% if item.changed %}
+            <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-amber-200 text-amber-900">changed</span>
+            {% endif %}
+          {% else %}
+          <span class="text-gray-400">&mdash;</span>
+          {% endif %}
+        </td>
+        <td class="px-4 pt-3 pb-1 text-gray-500 max-w-[300px] truncate" {% if item.verdict %}title="{{ item.verdict.reason }}"{% endif %}>
+          {%- if item.verdict %}{{ item.verdict.reason }}{% else %}<span class="text-gray-400">&mdash;</span>{% endif -%}
+        </td>
+      </tr>
+      <tr class="{{ row_bg }}">
+        <td colspan="5" class="px-4 pb-3">
+          <details class="text-xs">
+            <summary class="cursor-pointer text-gray-500 hover:text-gray-700 select-none">
+              Prompt <span class="text-gray-400">&middot; {{ item.email.body | length }} chars raw → {{ item.processed_email.body | length }} chars preprocessed</span>
+            </summary>
+            <div class="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-4 bg-gray-50 border border-gray-200 rounded p-4">
+              <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">System prompt</h3>
+                <pre class="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{{ item.system_prompt }}</pre>
+              </div>
+              <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">User message</h3>
+                <pre class="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">{{ item.user_message }}</pre>
+              </div>
+            </div>
+          </details>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white shadow rounded-lg px-6 py-12 text-center text-gray-400">
+  No emails from this rule in the last {{ days }} day{{ '' if days == 1 else 's' }}.
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

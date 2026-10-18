@@ -120,13 +120,29 @@ class GmailProvider:
             unread_only=self._unread_only,
             lookback_days=self._lookback_days,
         )
+        return self._list_ids(query, _MAX_RESULTS)
 
-        logger.debug("Gmail: querying %r", query)
+    def fetch_recent(self, patterns: list[str], days: int, limit: int) -> list[str]:
+        """Return IDs of messages (read or unread) from the last `days` days, newest first.
+
+        At most min(limit, _MAX_RESULTS); no pagination. Respects fetch_label.
+        """
+        query = build_query(
+            patterns,
+            fetch_label=self._fetch_label,
+            unread_only=False,
+            lookback_days=days,
+        )
+        return self._list_ids(query, min(limit, _MAX_RESULTS))
+
+    def _list_ids(self, query: str, max_results: int) -> list[str]:
+        """Run a messages.list query and return the message IDs (Gmail returns newest first)."""
+        logger.debug("Gmail: querying %r (maxResults=%d)", query, max_results)
         try:
             result = (
                 self._service.users()
                 .messages()
-                .list(userId="me", q=query, maxResults=_MAX_RESULTS)
+                .list(userId="me", q=query, maxResults=max_results)
                 .execute()
             )
         except HttpError as e:

@@ -40,7 +40,7 @@ em-phi --help              # verify CLI works
 Run tests:
 
 ```bash
-uv run python -m pytest    # all 114 tests, ~2s
+uv run python -m pytest    # all 245 tests, ~4s
 uv run python -m pytest tests/test_config.py -v   # one file
 ```
 
@@ -56,7 +56,8 @@ src/em_phi/
 ├── config.py        # YAML loading + Pydantic validation + path expansion
 ├── models.py        # Email, Verdict dataclasses
 ├── processor.py     # Core loop: fetch → skip → classify → act → log
-├── debug.py         # Prompt inspector behind `em-phi debug` and the web debug page
+├── debug.py         # Prompt inspector behind `em-phi debug` (unread mail, no LLM call)
+├── playground.py    # Profile playground logic: re-classify a rule's recent mail with an edited profile (read-only)
 ├── actions.py       # Applies verdicts to Gmail via the provider
 ├── decision_log.py  # SQLite decision log (also tracks processed message IDs)
 ├── run_log.py       # Run history (`runs` table in the same SQLite file) + error collector
@@ -72,8 +73,8 @@ src/em_phi/
     ├── scheduler.py # Built-in scheduler (interval or cron) for web mode
     ├── routes/
     │   ├── config.py   # Config editor (validate, then atomic write)
-    │   ├── debug.py    # Prompt inspector page
     │   ├── log.py      # Decision log viewer
+    │   ├── playground.py # Profile playground (test/save an edited interest profile)
     │   ├── run.py      # Manual run controls
     │   └── _helpers.py # Shared route helpers
     ├── templates/   # Jinja2 templates
@@ -104,7 +105,7 @@ src/em_phi/
 ## Adding a new email provider
 
 1. Create `src/em_phi/providers/myprovider.py`
-2. Implement the five methods from `providers/base.py:EmailProvider`
+2. Implement the seven methods from `providers/base.py:EmailProvider`
 3. Define a top-level `create(config: AppConfig) -> EmailProvider` function
 4. In `config.yaml`, set `email_provider.name: myprovider` and put any provider-specific fields under `email_provider:` — they're preserved in `config.email_provider.model_extra`
 
@@ -137,7 +138,7 @@ Unknown config keys are rejected (only `email_provider` and `llm` allow extra fi
 
 ## Testing conventions
 
-- Tests live in `tests/`, split by module: `test_classifier.py`, `test_cli.py`, `test_config.py`, `test_decision_log.py`, `test_gmail_body.py`, `test_gmail_provider.py`, `test_processor.py`, `test_web_auth.py`, `test_web_config.py`, `test_web_debug.py`, `test_web_log.py`, `test_web_run.py`, `test_web_static_assets.py`
+- Tests live in `tests/`, split by module: `test_classifier.py`, `test_cli.py`, `test_config.py`, `test_decision_log.py`, `test_gmail_body.py`, `test_gmail_provider.py`, `test_playground.py`, `test_processor.py`, `test_run_log.py`, `test_web_auth.py`, `test_web_config.py`, `test_web_log.py`, `test_web_playground.py`, `test_web_run.py`, `test_web_static_assets.py`
 - Shared fixtures in `tests/conftest.py` — use these rather than building config/email objects inline
 - No live API calls — Gmail and Anthropic are mocked with `unittest.mock.MagicMock`
 - `pytest-mock` is available but the tests mostly use `unittest.mock` directly
