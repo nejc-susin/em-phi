@@ -73,10 +73,17 @@ class DecisionLog:
         with self._connect() as conn:
             if self._needs_action_taken_migration(conn):
                 logger.info("DecisionLog: migrating 'decisions' table to drop the action_taken CHECK constraint")
-                conn.executescript("ALTER TABLE decisions RENAME TO decisions_pre_action_taken_migration;")
-                conn.executescript("DROP INDEX IF EXISTS idx_sender; DROP INDEX IF EXISTS idx_processed_at;")
-                conn.executescript(_SCHEMA)  # recreates 'decisions' (new schema) + its indexes
-                conn.executescript("""
+                # One script, one transaction: executescript() COMMITs any pending
+                # transaction first, so separate calls would each commit on their own
+                # and a mid-way failure would strand the data in the backup table.
+                # On failure the transaction stays open and _connect() rolls it back.
+                conn.executescript(
+                    "BEGIN;\n"
+                    "ALTER TABLE decisions RENAME TO decisions_pre_action_taken_migration;\n"
+                    "DROP INDEX IF EXISTS idx_sender;\n"
+                    "DROP INDEX IF EXISTS idx_processed_at;\n"
+                    + _SCHEMA  # recreates 'decisions' (new schema) + its indexes
+                    + """
                     INSERT INTO decisions
                         (id, message_id, sender, subject, received_at,
                          verdict, confidence, reason, action_taken, processed_at)
@@ -84,7 +91,9 @@ class DecisionLog:
                            verdict, confidence, reason, action_taken, processed_at
                     FROM decisions_pre_action_taken_migration;
                     DROP TABLE decisions_pre_action_taken_migration;
-                """)
+                    COMMIT;
+                    """
+                )
             else:
                 conn.executescript(_SCHEMA)
         logger.debug("DecisionLog: initialized at %s", self.path)
@@ -161,10 +170,16 @@ class DecisionLog:
         params: list[object] = []
 
         if rule_email:
-            conditions.append("addr_of(sender) = ?")
-            params.append(rule_email.lower())
+            if "@" in rule_email:
+                conditions.append("addr_of(sender) = ?")
+                params.append(rule_email.lower())
+            else:
+                # Bare domain rule: matches every sender at that domain.
+                conditions.append("addr_of(sender) LIKE ? ESCAPE '\\'")
+                params.append("%@" + _like_escape(rule_email.lower()))
         if days is not None:
-            since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).isoformat()
+            # Same format as SQLite's datetime('now') so the string compare is correct.
+            since = (datetime.now(tz=timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
             conditions.append("processed_at >= ?")
             params.append(since)
         if verdict:
@@ -200,7 +215,7 @@ class DecisionLog:
 
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC LIMIT ? OFFSET ?",
+                f"SELECT * FROM decisions {where} ORDER BY processed_at DESC, id DESC LIMIT ? OFFSET ?",
                 params,
             ).fetchall()
 
