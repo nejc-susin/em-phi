@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import base64
+import email.message
 import email.utils
 import logging
+import re
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -229,29 +232,80 @@ def _pattern_to_from(pattern: str) -> str:
 
 
 def _extract_body(payload: dict) -> str:
-    """Recursively extract the plain-text body from a Gmail message payload."""
-    mime_type = payload.get("mimeType", "")
-
-    if mime_type == "text/plain":
-        data = payload.get("body", {}).get("data", "")
-        return _b64decode(data) if data else ""
-
-    # For multipart, prefer text/plain over other parts
-    parts = payload.get("parts", [])
-    plain = next((p for p in parts if p.get("mimeType") == "text/plain"), None)
-    if plain:
-        return _extract_body(plain)
-
-    # Recurse into nested multipart
-    for part in parts:
-        result = _extract_body(part)
-        if result:
-            return result
-
+    """Return the first text/plain body in the part tree, else HTML converted to text."""
+    for mime in ("text/plain", "text/html"):
+        part = _find_part(payload, mime)
+        if part:
+            text = _b64decode(part["body"]["data"], _part_charset(part))
+            return _html_to_text(text) if mime == "text/html" else text
     return ""
 
 
-def _b64decode(data: str) -> str:
+def _find_part(part: dict, mime_type: str) -> dict | None:
+    """Depth-first search for a non-attachment part of mime_type that has inline data."""
+    if (
+        part.get("mimeType") == mime_type
+        and not part.get("filename")
+        and part.get("body", {}).get("data")
+    ):
+        return part
+    for child in part.get("parts", []):
+        found = _find_part(child, mime_type)
+        if found:
+            return found
+    return None
+
+
+def _part_charset(part: dict) -> str:
+    for h in part.get("headers", []):
+        if h.get("name", "").lower() == "content-type":
+            m = email.message.Message()
+            m["Content-Type"] = h.get("value", "")
+            return m.get_content_charset() or "utf-8"
+    return "utf-8"
+
+
+def _b64decode(data: str, charset: str = "utf-8") -> str:
     # Gmail uses URL-safe base64; pad to a multiple of 4
     padded = data + "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(padded).decode("utf-8", errors="replace")
+    raw = base64.urlsafe_b64decode(padded)
+    try:
+        return raw.decode(charset, errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+_BLOCK_TAGS = {"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "table", "ul", "ol"}
+_SKIP_TAGS = {"script", "style", "head", "title"}
+
+
+class _TextExtractor(HTMLParser):
+    """Collects visible text from HTML, dropping script/style/head and breaking on block tags."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.chunks: list[str] = []
+        self._skip = 0
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip += 1
+        elif tag in _BLOCK_TAGS:
+            self.chunks.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip = max(0, self._skip - 1)
+        elif tag in _BLOCK_TAGS:
+            self.chunks.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip:
+            self.chunks.append(data)
+
+
+def _html_to_text(html_text: str) -> str:
+    parser = _TextExtractor()
+    parser.feed(html_text)
+    parser.close()
+    return re.sub(r"\n\s*\n+", "\n\n", "".join(parser.chunks)).strip()
