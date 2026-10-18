@@ -8,7 +8,7 @@ from em_phi.actions import apply_verdict
 from em_phi.config import LabelsConfig
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
-from em_phi.processor import _process_rule
+from em_phi.processor import _process_rule, process_all
 
 
 # ------------------------------------------------------------------
@@ -496,3 +496,61 @@ def test_process_rule_dry_run_does_not_log(
 
     assert not log.is_processed("msg001")
     provider.apply_label.assert_not_called()
+
+
+# ------------------------------------------------------------------
+# processor.process_all
+# ------------------------------------------------------------------
+
+def test_process_all_calls_rule_hooks_once_per_rule_in_order(
+    tmp_db, sample_config, sample_rule, sample_rule_archive, relevant_email, relevant_verdict,
+) -> None:
+    config = sample_config.model_copy(update={"rules": [sample_rule, sample_rule_archive]})
+    provider = MagicMock()
+    provider.fetch_unread.side_effect = lambda emails: ["msg001"] if emails == sample_rule.email else []
+    provider.get_message.return_value = relevant_email
+    classifier = MagicMock()
+    classifier.classify.return_value = relevant_verdict
+
+    calls: list[tuple] = []
+    summary = process_all(
+        config=config,
+        provider=provider,
+        classifier=classifier,
+        log=DecisionLog(tmp_db),
+        dry_run=True,
+        on_rule_start=lambda r: calls.append(("start", r.name)),
+        on_rule_done=lambda r, result: calls.append(("done", r.name, result)),
+    )
+
+    assert [c[:2] for c in calls] == [
+        ("start", sample_rule.name),
+        ("done", sample_rule.name),
+        ("start", sample_rule_archive.name),
+        ("done", sample_rule_archive.name),
+    ]
+    assert [c[2] for c in calls if c[0] == "done"] == summary.results
+    assert summary.results[0].processed == 1
+    assert summary.results[1].processed == 0
+
+
+def test_process_all_rule_filter_limits_hooks(
+    tmp_db, sample_config, sample_rule, sample_rule_archive,
+) -> None:
+    config = sample_config.model_copy(update={"rules": [sample_rule, sample_rule_archive]})
+    provider = MagicMock()
+    provider.fetch_unread.return_value = []
+
+    started: list[str] = []
+    summary = process_all(
+        config=config,
+        provider=provider,
+        classifier=MagicMock(),
+        log=DecisionLog(tmp_db),
+        dry_run=True,
+        rule_filter=sample_rule_archive.email[0],
+        on_rule_start=lambda r: started.append(r.name),
+    )
+
+    assert started == [sample_rule_archive.name]
+    assert len(summary.results) == 1

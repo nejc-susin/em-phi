@@ -7,7 +7,7 @@
   <h1 class="text-xl font-semibold text-gray-900">Run</h1>
   {% if last_run %}
   <p class="text-sm text-gray-500">
-    Last run: {{ last_run.finished_at.strftime('%Y-%m-%d %H:%M') }}
+    Last run: {{ last_run.finished_at.strftime('%Y-%m-%d %H:%M') }} UTC
     — {{ last_run.summary.processed }} processed,
     {{ last_run.summary.relevant }} relevant{% if last_run.dry_run %} <span class="text-amber-600">(dry run)</span>{% endif %}
   </p>

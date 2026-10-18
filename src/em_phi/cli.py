@@ -6,9 +6,10 @@ import click
 
 from em_phi.actions import ACTIONS_TAKEN
 from em_phi.classifiers.base import Classifier
-from em_phi.config import AppConfig, ConfigError, load_config
+from em_phi.config import AppConfig, ConfigError, RuleConfig, load_config
 from em_phi.decision_log import DecisionLog
 from em_phi.models import Email, Verdict
+from em_phi.processor import RuleResult, RunSummary, process_all
 from em_phi.providers.base import EmailProvider
 
 
@@ -136,8 +137,6 @@ def run_cmd(ctx: click.Context, dry_run: bool, rule: str | None) -> None:
     labels/archiving based on the verdict, and logs every decision.
     Use --dry-run to preview what would happen without touching Gmail.
     """
-    from em_phi.processor import _process_rule
-
     config_path: Path = ctx.obj["config_path"]
 
     try:
@@ -180,52 +179,39 @@ def run_cmd(ctx: click.Context, dry_run: bool, rule: str | None) -> None:
     def on_error(context: str, exc: Exception) -> None:
         click.echo(f"  WARNING: error {context}: {exc}", err=True)
 
-    rules_to_run = (
-        [r for r in config.rules if rule in r.email] if rule else config.rules
-    )
-
-    total_processed = total_relevant = total_irrelevant = total_skipped = total_errors = 0
-
-    for r in rules_to_run:
+    def on_rule_start(r: RuleConfig) -> None:
         click.echo(f"Processing {r.email} (\"{r.name}\")...")
 
-        result = _process_rule(
-            rule=r,
-            config=config,
-            provider=provider,
-            classifier=classifier,
-            log=log,
-            dry_run=dry_run,
-            on_email=on_email,
-            on_error=on_error,
-        )
-
-        parts = [
-            f"{result.processed} processed",
-            f"{result.relevant} relevant",
-            f"{result.irrelevant} irrelevant",
-            f"{result.skipped} skipped",
-        ]
-        if result.errors:
-            parts.append(f"{result.errors} errors")
-        click.echo(f"  Done: {', '.join(parts)}")
+    def on_rule_done(r: RuleConfig, result: RuleResult) -> None:
+        click.echo(f"  Done: {_format_counts(result)}")
         click.echo()
 
-        total_processed += result.processed
-        total_relevant += result.relevant
-        total_irrelevant += result.irrelevant
-        total_skipped += result.skipped
-        total_errors += result.errors
+    summary = process_all(
+        config=config,
+        provider=provider,
+        classifier=classifier,
+        log=log,
+        dry_run=dry_run,
+        rule_filter=rule,
+        on_email=on_email,
+        on_error=on_error,
+        on_rule_start=on_rule_start,
+        on_rule_done=on_rule_done,
+    )
 
-    summary_parts = [
-        f"{total_processed} processed",
-        f"{total_relevant} relevant",
-        f"{total_irrelevant} irrelevant",
-        f"{total_skipped} skipped",
+    click.echo(f"Run complete: {_format_counts(summary)}")
+
+
+def _format_counts(counts: RuleResult | RunSummary) -> str:
+    parts = [
+        f"{counts.processed} processed",
+        f"{counts.relevant} relevant",
+        f"{counts.irrelevant} irrelevant",
+        f"{counts.skipped} skipped",
     ]
-    if total_errors:
-        summary_parts.append(f"{total_errors} errors")
-    click.echo(f"Run complete: {', '.join(summary_parts)}")
+    if counts.errors:
+        parts.append(f"{counts.errors} errors")
+    return ", ".join(parts)
 
 
 @cli.command("debug")

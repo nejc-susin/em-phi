@@ -55,6 +55,9 @@ class RunSummary:
 # Callback type for per-email progress reporting
 OnEmail = Callable[[Email, Verdict, str, bool], None]  # email, verdict, action, dry_run
 OnError = Callable[[str, Exception], None]              # context, exception
+# Callback types for per-rule progress reporting
+OnRuleStart = Callable[[RuleConfig], None]
+OnRuleDone = Callable[[RuleConfig, RuleResult], None]
 
 
 def process_all(
@@ -67,6 +70,8 @@ def process_all(
     rule_filter: str | None = None,
     on_email: OnEmail | None = None,
     on_error: OnError | None = None,
+    on_rule_start: OnRuleStart | None = None,
+    on_rule_done: OnRuleDone | None = None,
 ) -> RunSummary:
     """Run the full processing loop over all configured rules."""
     summary = RunSummary()
@@ -76,6 +81,8 @@ def process_all(
         rules = [r for r in rules if rule_filter in r.email]
 
     for rule in rules:
+        if on_rule_start:
+            on_rule_start(rule)
         result = _process_rule(
             rule=rule,
             config=config,
@@ -87,6 +94,8 @@ def process_all(
             on_error=on_error,
         )
         summary.results.append(result)
+        if on_rule_done:
+            on_rule_done(rule, result)
 
     return summary
 

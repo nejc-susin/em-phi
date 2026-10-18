@@ -13,7 +13,7 @@ from em_phi.processor import RunSummary
 class LastRun:
     summary: RunSummary
     dry_run: bool
-    finished_at: datetime
+    finished_at: datetime  # timezone-aware UTC
 
 
 class AppState:
@@ -22,9 +22,16 @@ class AppState:
     def __init__(self, config: AppConfig, config_path: Path) -> None:
         self.config = config
         self.config_path = config_path
-        self.is_running: bool = False
+        # Held from the moment a run is started until its worker thread has
+        # finished — see web.routes.run._start_run.
         self.run_lock: asyncio.Lock = asyncio.Lock()
+        # Strong reference to the in-flight run task so it isn't garbage-collected.
+        self.current_run: asyncio.Task[RunSummary] | None = None
         self.last_run: LastRun | None = None
+
+    @property
+    def is_running(self) -> bool:
+        return self.run_lock.locked()
 
     def reload_config(self, new_config: AppConfig) -> None:
         self.config = new_config
