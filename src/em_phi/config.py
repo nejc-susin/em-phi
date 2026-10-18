@@ -12,6 +12,10 @@ class ConfigError(Exception):
     pass
 
 
+# Top-level keys from the old config schema, mapped to their replacements.
+_RENAMED_KEYS = {"gmail": "email_provider", "anthropic": "llm"}
+
+
 def _expand(raw: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(str(raw))))
 
@@ -36,7 +40,9 @@ class EmailProviderConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    """Config for the LLM classifier."""
+    """Config for the LLM classifier. Extra fields are preserved for custom classifiers."""
+
+    model_config = ConfigDict(extra="allow")
 
     name: str = "claude"
     model: str = "claude-haiku-5-5"
@@ -44,12 +50,14 @@ class LLMConfig(BaseModel):
 
 
 class LabelsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     relevant: str = "EmPhi/Relevant"
     irrelevant: str = "EmPhi/Irrelevant"
 
 
 class DecisionLogConfig(BaseModel):
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     path: Path = Path("decisions.db")
 
@@ -60,7 +68,7 @@ class DecisionLogConfig(BaseModel):
 
 
 class LoggingConfig(BaseModel):
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "WARNING"
     file: Path | None = None
@@ -74,6 +82,8 @@ class LoggingConfig(BaseModel):
 
 
 class RuleConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: list[str]
     name: str
     interests: str
@@ -97,6 +107,8 @@ class RuleConfig(BaseModel):
 
 
 class ScheduleConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     enabled: bool = False
     interval_hours: int | None = Field(default=6, ge=1)
     cron: str | None = None  # takes precedence over interval_hours if set
@@ -118,13 +130,15 @@ class ScheduleConfig(BaseModel):
 
 
 class WebConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     host: str = "127.0.0.1"
     port: int = 8080
     auth_token: str  # required — no default; em-phi serve fails fast if absent
 
 
 class AppConfig(BaseModel):
-    model_config = ConfigDict(frozen=False)
+    model_config = ConfigDict(frozen=False, extra="forbid")
 
     email_provider: EmailProviderConfig = EmailProviderConfig()
     llm: LLMConfig = LLMConfig()
@@ -173,7 +187,11 @@ def load_config(config_path: Path) -> AppConfig:
         messages = []
         for err in e.errors():
             loc = " -> ".join(str(p) for p in err["loc"]) if err["loc"] else "config"
-            messages.append(f"  {loc}: {err['msg']}")
+            line = f"  {loc}: {err['msg']}"
+            if err["type"] == "extra_forbidden" and len(err["loc"]) == 1 and err["loc"][0] in _RENAMED_KEYS:
+                new = _RENAMED_KEYS[err["loc"][0]]
+                line += f" (renamed to '{new}:', see config.example.yaml)"
+            messages.append(line)
         raise ConfigError("Config validation failed:\n" + "\n".join(messages)) from e
 
     config.resolve_relative_paths(config_path.resolve().parent)

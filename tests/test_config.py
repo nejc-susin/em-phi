@@ -177,3 +177,34 @@ def test_extra_fields_preserved_for_custom_provider(tmp_path: Path) -> None:
     assert config.email_provider.name == "myimap"
     assert config.email_provider.model_extra["host"] == "imap.example.com"
     assert config.email_provider.model_extra["port"] == 993
+
+
+def test_unknown_top_level_key_rejected(tmp_path: Path) -> None:
+    p = _write_config(tmp_path, {**_VALID_DATA, "schedul": {"enabled": True}})
+    with pytest.raises(ConfigError, match="schedul"):
+        load_config(p)
+
+
+def test_legacy_gmail_block_rejected_with_hint(tmp_path: Path) -> None:
+    p = _write_config(tmp_path, {**_VALID_DATA, "gmail": {"credentials_file": "c.json"}})
+    with pytest.raises(ConfigError, match="email_provider"):
+        load_config(p)
+
+
+def test_unknown_rule_key_rejected(tmp_path: Path) -> None:
+    rule = {**_VALID_DATA["rules"][0], "tolerence": "balanced"}
+    p = _write_config(tmp_path, {**_VALID_DATA, "rules": [rule]})
+    with pytest.raises(ConfigError, match="tolerence"):
+        load_config(p)
+
+
+def test_llm_extra_fields_preserved(tmp_path: Path) -> None:
+    p = _write_config(tmp_path, {**_VALID_DATA, "llm": {"name": "claude", "temperature": 0.2}})
+    config = load_config(p)
+    assert config.llm.model_extra == {"temperature": 0.2}
+
+
+def test_email_provider_extra_fields_preserved(tmp_path: Path) -> None:
+    data = {**_VALID_DATA, "email_provider": {**_VALID_DATA["email_provider"], "imap_host": "x"}}
+    config = load_config(_write_config(tmp_path, data))
+    assert config.email_provider.model_extra == {"imap_host": "x"}
