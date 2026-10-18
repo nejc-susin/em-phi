@@ -19,6 +19,11 @@ _TOLERANCE_GUIDANCE = {
     "conservative": "Keep anything even slightly relevant. Archive only obvious misses.",
 }
 
+# Adaptive thinking (on by default on current models) counts toward
+# max_tokens, so a cap sized for the short JSON answer alone — e.g. the old
+# default of 256 — can be used up by thinking before any text is produced.
+MIN_MAX_TOKENS = 1024
+
 _SYSTEM_TEMPLATE = """\
 You are an email relevance classifier for a newsletter reader.
 
@@ -76,7 +81,12 @@ class ClaudeClassifier:
             )
         self._client = anthropic.Anthropic(api_key=api_key)
         self._model = config.model
-        self._max_tokens = config.max_tokens
+        if config.max_tokens < MIN_MAX_TOKENS:
+            logger.info(
+                "Claude: llm.max_tokens=%d is below %d; using %d so thinking leaves room for the answer",
+                config.max_tokens, MIN_MAX_TOKENS, MIN_MAX_TOKENS,
+            )
+        self._max_tokens = max(config.max_tokens, MIN_MAX_TOKENS)
 
     def classify(self, email: Email, rule: RuleConfig) -> Verdict:
         system_prompt, user_message = build_prompt(email, rule)

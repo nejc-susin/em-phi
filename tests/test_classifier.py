@@ -156,6 +156,19 @@ def test_classify_requests_low_effort_without_thinking_param(
     assert "thinking" not in kwargs
 
 
+@pytest.mark.parametrize("configured, sent", [(256, 1024), (1024, 1024), (2048, 2048)])
+def test_classify_raises_max_tokens_below_the_floor(
+    monkeypatch: pytest.MonkeyPatch, relevant_email, sample_rule, configured: int, sent: int,
+) -> None:
+    """Thinking counts toward max_tokens, so an old small cap (256) must not starve the answer."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake")
+    classifier = ClaudeClassifier(LLMConfig(max_tokens=configured))
+    mock_response = _response(_text(_VERDICT_JSON))
+    with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
+        classifier.classify(relevant_email, sample_rule)
+    assert mock_create.call_args.kwargs["max_tokens"] == sent
+
+
 def test_missing_api_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):

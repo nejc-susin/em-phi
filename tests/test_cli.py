@@ -279,3 +279,17 @@ def test_runs_limit_is_bounded(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
     result = CliRunner().invoke(cli, ["--config", str(config_path), "runs", "--limit", "201"])
     assert result.exit_code == 2
+
+
+def test_check_config_warns_about_small_max_tokens(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    config_path.write_text(config_path.read_text() + "llm:\n  max_tokens: 256\n")
+    result = CliRunner().invoke(cli, ["--config", str(config_path), "check-config"])
+    assert result.exit_code == 0, result.output
+    assert "WARNING: llm.max_tokens is 256; em-phi uses 1024 instead" in result.output
+
+
+def test_check_config_is_quiet_about_default_max_tokens(tmp_path: Path) -> None:
+    result = CliRunner().invoke(cli, ["--config", str(_write_config(tmp_path)), "check-config"])
+    assert result.exit_code == 0, result.output
+    assert "max_tokens" not in result.output

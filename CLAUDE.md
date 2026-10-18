@@ -40,7 +40,7 @@ em-phi --help              # verify CLI works
 Run tests:
 
 ```bash
-uv run python -m pytest    # all 245 tests, ~4s
+uv run python -m pytest    # all 250 tests, ~4s
 uv run python -m pytest tests/test_config.py -v   # one file
 ```
 

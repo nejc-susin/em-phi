@@ -44,6 +44,13 @@ def check_config(ctx: click.Context) -> None:
     click.echo(f"Config:        {config_path.resolve()}")
     click.echo(f"email_provider: {config.email_provider.name}")
     click.echo(f"llm:           {config.llm.name}  (model={config.llm.model})")
+    from em_phi.classifiers.claude import MIN_MAX_TOKENS
+    if config.llm.name == "claude" and config.llm.max_tokens < MIN_MAX_TOKENS:
+        click.echo(
+            f"  WARNING: llm.max_tokens is {config.llm.max_tokens}; em-phi uses {MIN_MAX_TOKENS} instead. "
+            "Claude thinks before answering and thinking counts toward max_tokens. "
+            f"Set it to {MIN_MAX_TOKENS} or more to silence this."
+        )
     click.echo(f"Labels:        {config.labels.relevant} / {config.labels.irrelevant}")
     click.echo(f"Decision log:  {config.decision_log.path}")
     click.echo()
