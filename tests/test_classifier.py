@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -61,6 +62,17 @@ def test_validate_missing_reason_raises() -> None:
 # ClaudeClassifier — full call with mocked SDK
 # ------------------------------------------------------------------
 
+def _response(*blocks, stop_reason: str = "end_turn") -> SimpleNamespace:
+    return SimpleNamespace(content=list(blocks), stop_reason=stop_reason)
+
+
+def _text(text: str) -> SimpleNamespace:
+    return SimpleNamespace(type="text", text=text)
+
+
+_THINKING = SimpleNamespace(type="thinking", thinking="")
+
+
 @pytest.fixture
 def classifier(monkeypatch: pytest.MonkeyPatch) -> ClaudeClassifier:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake")
@@ -70,8 +82,7 @@ def classifier(monkeypatch: pytest.MonkeyPatch) -> ClaudeClassifier:
 def test_classify_returns_verdict(classifier: ClaudeClassifier, relevant_email, sample_rule) -> None:
     response_text = '{"verdict": "relevant", "confidence": "high", "reason": "Python release."}'
 
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text=response_text)]
+    mock_response = _response(_text(response_text))
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response):
         verdict = classifier.classify(relevant_email, sample_rule)
@@ -83,8 +94,7 @@ def test_classify_returns_verdict(classifier: ClaudeClassifier, relevant_email, 
 def test_classify_sends_interest_profile_in_system_prompt(
     classifier: ClaudeClassifier, relevant_email, sample_rule
 ) -> None:
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text='{"verdict": "relevant", "confidence": "high", "reason": "R."}')]
+    mock_response = _response(_text('{"verdict": "relevant", "confidence": "high", "reason": "R."}'))
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
         classifier.classify(relevant_email, sample_rule)
@@ -101,8 +111,7 @@ def test_classify_sends_interest_profile_in_system_prompt(
 def test_classify_includes_email_content_in_user_message(
     classifier: ClaudeClassifier, relevant_email, sample_rule
 ) -> None:
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text='{"verdict": "irrelevant", "confidence": "low", "reason": "R."}')]
+    mock_response = _response(_text('{"verdict": "irrelevant", "confidence": "low", "reason": "R."}'))
 
     with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
         classifier.classify(relevant_email, sample_rule)
@@ -111,6 +120,43 @@ def test_classify_includes_email_content_in_user_message(
     user_content = messages[0]["content"]
     assert relevant_email.subject in user_content
     assert relevant_email.body in user_content
+
+
+_VERDICT_JSON = '{"verdict": "relevant", "confidence": "high", "reason": "R."}'
+
+
+def test_classify_skips_thinking_block(classifier: ClaudeClassifier, relevant_email, sample_rule) -> None:
+    mock_response = _response(_THINKING, _text(_VERDICT_JSON))
+    with patch.object(classifier._client.messages, "create", return_value=mock_response):
+        verdict = classifier.classify(relevant_email, sample_rule)
+    assert verdict.verdict == "relevant"
+
+
+def test_classify_refusal_raises(classifier: ClaudeClassifier, relevant_email, sample_rule) -> None:
+    mock_response = _response(stop_reason="refusal")
+    with patch.object(classifier._client.messages, "create", return_value=mock_response):
+        with pytest.raises(ValueError, match="refused"):
+            classifier.classify(relevant_email, sample_rule)
+
+
+def test_classify_max_tokens_without_text_raises(
+    classifier: ClaudeClassifier, relevant_email, sample_rule
+) -> None:
+    mock_response = _response(_THINKING, stop_reason="max_tokens")
+    with patch.object(classifier._client.messages, "create", return_value=mock_response):
+        with pytest.raises(ValueError, match="max_tokens"):
+            classifier.classify(relevant_email, sample_rule)
+
+
+def test_classify_requests_low_effort_without_thinking_param(
+    classifier: ClaudeClassifier, relevant_email, sample_rule
+) -> None:
+    mock_response = _response(_text(_VERDICT_JSON))
+    with patch.object(classifier._client.messages, "create", return_value=mock_response) as mock_create:
+        classifier.classify(relevant_email, sample_rule)
+    kwargs = mock_create.call_args.kwargs
+    assert kwargs["output_config"] == {"effort": "low"}
+    assert "thinking" not in kwargs
 
 
 def test_missing_api_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:

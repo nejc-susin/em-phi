@@ -95,7 +95,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             config.llm = LLMConfig(
                 name=config.llm.name,
                 model=str(form.get("model", config.llm.model)).strip(),
-                max_tokens=int(form.get("max_tokens") or 256),
+                max_tokens=int(form.get("max_tokens") or 1024),
             )
             config.labels = LabelsConfig(
                 relevant=str(form.get("labels_relevant", "EmPhi/Relevant")).strip(),

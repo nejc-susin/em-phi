@@ -17,7 +17,7 @@ email_provider:
 llm:
   name: claude
   model: claude-haiku-5-5     # Claude Haiku is recommended for cost efficiency
-  max_tokens: 256
+  max_tokens: 1024
 
 labels:
   relevant: "EmPhi/Relevant"           # Applied to emails the LLM considers relevant

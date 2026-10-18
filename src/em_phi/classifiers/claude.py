@@ -87,9 +87,28 @@ class ClaudeClassifier:
                 }
             ],
             messages=[{"role": "user", "content": user_message}],
+            # Classification needs little reasoning; low effort keeps the default
+            # adaptive thinking short. No `thinking` param: "disabled" is rejected
+            # by some models (e.g. Opus/Sonnet 5.5).
+            output_config={"effort": "low"},
         )
 
-        raw = response.content[0].text
+        if response.stop_reason == "refusal":
+            raise ValueError(f"Claude refused to classify {email.subject!r} (stop_reason=refusal)")
+
+        # Skip thinking (and any other non-text) blocks.
+        raw = "".join(b.text for b in response.content if b.type == "text")
+        if not raw.strip():
+            hint = (
+                " The response hit max_tokens before producing text; "
+                "raise llm.max_tokens in the config."
+                if response.stop_reason == "max_tokens"
+                else ""
+            )
+            raise ValueError(
+                f"Claude returned no text for {email.subject!r} "
+                f"(stop_reason={response.stop_reason}).{hint}"
+            )
         logger.debug("Claude: raw response: %r", raw)
         return _parse_verdict(raw)
 

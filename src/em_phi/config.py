@@ -40,7 +40,7 @@ class LLMConfig(BaseModel):
 
     name: str = "claude"
     model: str = "claude-haiku-5-5"
-    max_tokens: int = 256
+    max_tokens: int = 1024
 
 
 class LabelsConfig(BaseModel):
