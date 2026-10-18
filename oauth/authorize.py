@@ -1,6 +1,7 @@
-from google_auth_oauthlib.flow import InstalledAppFlow
-from pathlib import Path
 import sys
+from pathlib import Path
+
+from google_auth_oauthlib.flow import InstalledAppFlow
 
 credentials_file = sys.argv[1] if len(sys.argv) > 1 else "credentials.json"
 token_file = sys.argv[2] if len(sys.argv) > 2 else "token.json"

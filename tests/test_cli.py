@@ -8,7 +8,7 @@ from em_phi.cli import cli
 
 def _write_config(tmp_path: Path) -> Path:
     config_path = tmp_path / "config.yaml"
-    config_path.write_text(f"""
+    config_path.write_text("""
 email_provider:
   credentials_file: credentials.json
   token_file: token.json

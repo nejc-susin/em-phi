@@ -26,11 +26,9 @@ _MAX_RESULTS = 100
 class GmailProvider:
     def __init__(
         self,
-        credentials_file: Path,
         token_file: Path,
         fetch_label: str | None = None,
     ) -> None:
-        self._credentials_file = credentials_file
         self._token_file = token_file
         self._fetch_label = fetch_label
         self._service: Any = None

@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -15,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 
 from em_phi.config import AppConfig
 from em_phi.web.scheduler import EmPhiScheduler
-from em_phi.web.state import AppState, LastRun
+from em_phi.web.state import AppState
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,7 @@ def _session_value(token: str) -> str:
 
 def _safe_equals(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
+
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -122,7 +122,7 @@ def create_app(config: AppConfig, config_path: Path) -> FastAPI:
     from em_phi.web.routes import log as log_routes
     from em_phi.web.routes import run as run_routes
 
-    app.include_router(config_routes.router(state, templates, scheduler))
+    app.include_router(config_routes.router(state, templates, scheduler, scheduled_run))
     app.include_router(run_routes.router(state, templates))
     app.include_router(log_routes.router(state, templates))
     app.include_router(debug_routes.router(state, templates))

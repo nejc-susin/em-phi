@@ -7,7 +7,7 @@ from em_phi.providers.gmail import GmailProvider
 
 
 def _provider(fetch_label=None) -> GmailProvider:
-    p = GmailProvider(Path("c.json"), Path("t.json"), fetch_label=fetch_label)
+    p = GmailProvider(Path("t.json"), fetch_label=fetch_label)
     p._service = MagicMock()
     return p
 

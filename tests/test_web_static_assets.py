@@ -6,7 +6,7 @@ from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, Rul
 from em_phi.web.app import _session_value, create_app
 
 _EXTERNAL_HOSTS = ("cdn.tailwindcss.com", "unpkg.com")
-_STATIC_ASSETS = ("/static/tailwind.js", "/static/htmx.min.js", "/static/htmx-sse.js")
+_STATIC_ASSETS = ("/static/tailwind.js",)
 
 
 def _make_client(tmp_path: Path) -> TestClient:

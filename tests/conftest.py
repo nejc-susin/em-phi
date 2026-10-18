@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from em_phi.config import AppConfig, DecisionLogConfig, EmailProviderConfig, LabelsConfig, LLMConfig, RuleConfig
+from em_phi.config import (
+    AppConfig,
+    DecisionLogConfig,
+    EmailProviderConfig,
+    RuleConfig,
+)
 from em_phi.models import Email, Verdict
 
 

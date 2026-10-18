@@ -27,12 +27,6 @@ dependencies = [
 [project.scripts]
 em-phi = "em_phi.cli:cli"
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0",
-    "pytest-mock>=3.0",
-]
-
 [tool.hatch.build.targets.wheel]
 packages = ["src/em_phi"]
 

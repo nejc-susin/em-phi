@@ -4,20 +4,26 @@ import logging
 import os
 import shutil
 import tempfile
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from em_phi.config import AppConfig, ConfigError, RuleConfig, load_config
+from em_phi.config import AppConfig, RuleConfig, load_config
 from em_phi.web.scheduler import EmPhiScheduler
 from em_phi.web.state import AppState
 
 logger = logging.getLogger(__name__)
 
 
-def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiScheduler) -> APIRouter:
+def router(
+    state: AppState,
+    templates: Jinja2Templates,
+    scheduler: EmPhiScheduler,
+    scheduled_run: Callable[[], Awaitable[None]],
+) -> APIRouter:
     r = APIRouter()
 
     @r.get("/config", response_class=HTMLResponse)
@@ -42,7 +48,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             )
             config = state.config.model_copy(deep=True)
             config.rules = [*config.rules, new_rule]
-            _save_and_reload(state, config, scheduler)
+            _save_and_reload(state, config, scheduler, scheduled_run)
         except Exception as exc:
             error = str(exc)
             return templates.TemplateResponse(request, "config.html", {
@@ -69,7 +75,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             )
             config = state.config.model_copy(deep=True)
             config.rules = rules
-            _save_and_reload(state, config, scheduler)
+            _save_and_reload(state, config, scheduler, scheduled_run)
         except Exception as exc:
             error = str(exc)
             return templates.TemplateResponse(request, "config.html", {
@@ -87,7 +93,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             config = state.config.model_copy(deep=True)
             config.rules = rules
             try:
-                _save_and_reload(state, config, scheduler)
+                _save_and_reload(state, config, scheduler, scheduled_run)
             except Exception as exc:
                 return templates.TemplateResponse(request, "config.html", {
                     "config": state.config,
@@ -120,7 +126,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             )
             fetch_label = str(form.get("fetch_label", "")).strip() or None
             config.email_provider.fetch_label = fetch_label
-            _save_and_reload(state, config, scheduler)
+            _save_and_reload(state, config, scheduler, scheduled_run)
         except Exception as exc:
             return templates.TemplateResponse(request, "config.html", {
                 "config": state.config,
@@ -142,7 +148,7 @@ def router(state: AppState, templates: Jinja2Templates, scheduler: EmPhiSchedule
             )
             config = state.config.model_copy(deep=True)
             config.schedule = sc
-            _save_and_reload(state, config, scheduler)
+            _save_and_reload(state, config, scheduler, scheduled_run)
         except Exception as exc:
             error = str(exc)
             return templates.TemplateResponse(request, "config.html", {
@@ -159,7 +165,12 @@ def _parse_emails(raw: str) -> list[str]:
     return [e.strip() for e in raw.split(",") if e.strip()]
 
 
-def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiScheduler) -> None:
+def _save_and_reload(
+    state: AppState,
+    config: AppConfig,
+    scheduler: EmPhiScheduler,
+    scheduled_run: Callable[[], Awaitable[None]],
+) -> None:
     """Validate and atomically write config to disk, then swap it into state.
 
     The YAML goes to a temp file next to config.yaml and is loaded back with
@@ -183,10 +194,6 @@ def _save_and_reload(state: AppState, config: AppConfig, scheduler: EmPhiSchedul
         raise
 
     state.reload_config(reloaded)
-
-    async def scheduled_run() -> None:
-        from em_phi.web.routes.run import execute_run
-        await execute_run(state, dry_run=False, rule_filter=None)
 
     scheduler.reschedule(reloaded, scheduled_run)
     logger.info("Config saved and reloaded: %s", state.config_path)

@@ -1,13 +1,10 @@
-import os
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from em_phi.classifiers.claude import ClaudeClassifier, _parse_verdict, _validate
-from em_phi.config import LLMConfig, RuleConfig
-from em_phi.models import Verdict
-
+from em_phi.config import LLMConfig
 
 # ------------------------------------------------------------------
 # _parse_verdict — parsing strategies

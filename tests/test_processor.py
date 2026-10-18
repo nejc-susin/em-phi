@@ -1,15 +1,11 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock, call
-
-import pytest
+from unittest.mock import MagicMock
 
 from em_phi.actions import apply_verdict
-from em_phi.config import LabelsConfig
 from em_phi.decision_log import DecisionLog
-from em_phi.models import Email, Verdict
+from em_phi.models import Verdict
 from em_phi.processor import _process_rule, process_all
-
 
 # ------------------------------------------------------------------
 # actions.apply_verdict
@@ -374,7 +370,7 @@ def test_process_rule_basic(
     tmp_db, sample_config, sample_rule, relevant_email, irrelevant_email,
     relevant_verdict, irrelevant_verdict,
 ) -> None:
-    result, log, provider, seen = _make_rule_processor(
+    result, log, _provider, _seen = _make_rule_processor(
         message_ids=["msg001", "msg002"],
         emails={"msg001": relevant_email, "msg002": irrelevant_email},
         verdicts={"msg001": relevant_verdict, "msg002": irrelevant_verdict},

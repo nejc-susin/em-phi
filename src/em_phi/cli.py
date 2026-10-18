@@ -298,6 +298,7 @@ def serve_cmd(ctx: click.Context) -> None:
     _configure_logging(config)
 
     import uvicorn
+
     from em_phi.web.app import create_app
 
     app = create_app(config, config_path)
@@ -309,11 +310,11 @@ def _build_provider(config: AppConfig) -> EmailProvider:
     if name == "gmail":
         from em_phi.providers.gmail import GmailProvider
         ep = config.email_provider
-        if not ep.credentials_file or not ep.token_file:
+        if not ep.token_file:
             raise click.ClickException(
-                "email_provider 'gmail' requires credentials_file and token_file under email_provider:"
+                "email_provider 'gmail' requires token_file under email_provider:"
             )
-        return GmailProvider(ep.credentials_file, ep.token_file, ep.fetch_label)
+        return GmailProvider(ep.token_file, ep.fetch_label)
     try:
         module = importlib.import_module(f"em_phi.providers.{name}")
     except ImportError as e:
