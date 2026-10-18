@@ -2,11 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Tell uv to use the system Python instead of creating a virtual environment
-ENV UV_SYSTEM_PYTHON=1
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Install uv (pinned to the version that produced uv.lock)
+COPY --from=ghcr.io/astral-sh/uv:0.9.2 /uv /usr/local/bin/uv
 
 # 1. Install dependencies first (for better caching)
 COPY pyproject.toml uv.lock ./
@@ -30,8 +27,6 @@ ENV EM_PHI_CONFIG=/data/config.yaml
 # Port used by web mode (em-phi serve). Not needed for headless cron mode.
 EXPOSE 8080
 
-# ENTRYPOINT ["em-phi"]
-ENTRYPOINT ["uv", "run", "em-phi"]
-# Default: headless run. Override with CMD ["serve"] for web mode.
-#CMD ["run"]
+ENTRYPOINT ["em-phi"]
+# Default: web mode. Use CMD ["run"] (or `command: ["run"]`) for the headless alternative.
 CMD ["serve"]

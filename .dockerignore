@@ -1,0 +1,16 @@
+.git
+.venv
+__pycache__/
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.idea
+.DS_Store
+data/
+.env
+*.db
+credentials.json
+token.json
+config.yaml
+tests/
+docs/
