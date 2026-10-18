@@ -34,7 +34,9 @@ em-phi uses the Gmail API via OAuth2. You need a Google Cloud project with the G
 5. On the left, go to **Audience**, scroll to **Test users**, click **Add users** and add your Gmail address
 6. Click **Save and Continue**, then **Back to Dashboard**
 
-> The app stays in "Testing" mode, which is fine for personal use. You do not need to publish it.
+7. Go back to **Audience** and click **Publish app** to move it to "In production"
+
+> Publish the app. In "Testing" status, Google expires the refresh token after 7 days for External apps that request Gmail scopes, so you would have to re-run `oauth/authorize.py` every week. Publishing does not require Google verification for personal use. You will only see the "Google hasn't verified this app" warning once during authorization (click **Advanced** → **Go to em-phi**).
 
 ---
 
@@ -82,6 +84,8 @@ Delete `token.json` locally to complete the cleanup.
 
 **"The OAuth client was not found"** — make sure you downloaded the credentials for the correct project and that the Gmail API is enabled in that project.
 
-**"Access blocked: em-phi has not completed Google's verification process"** — click **Advanced** → **Go to em-phi (unsafe)** on the consent screen. This is expected for personal apps in testing mode.
+**"Access blocked: em-phi has not completed Google's verification process"** — click **Advanced** → **Go to em-phi (unsafe)** on the consent screen. This is expected for unverified personal apps.
+
+**Token stops working after about a week** — the app is still in "Testing" status. Publish it (see step 3), then delete `token.json` and re-run `oauth/authorize.py`.
 
 **Token expired / "invalid_grant"** — delete `token.json` and run `oauth/authorize.py` again (see step 5).

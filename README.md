@@ -25,7 +25,7 @@ em-phi connects to your Gmail account, reads incoming emails from senders you co
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/yourname/em-phi.git
+git clone https://github.com/nejc-susin/em-phi.git
 cd em-phi
 uv sync
 ```
@@ -64,6 +64,8 @@ Then inspect the results:
 em-phi log
 ```
 
+To run em-phi always-on with a dashboard and built-in scheduler, see [Web UI](#web-ui) and [docs/docker.md](docs/docker.md).
+
 ---
 
 ## CLI reference
@@ -78,9 +80,14 @@ em-phi log
 | `em-phi log --rule EMAIL` | Filter log by rule email address |
 | `em-phi log --days N` | Show decisions from the last N days |
 | `em-phi log --limit N` | Show N entries (default: 20) |
+| `em-phi log --offset N` | Skip the first N matching entries (for paging) |
+| `em-phi log --verdict relevant\|irrelevant` | Filter log by verdict |
+| `em-phi log --action label\|archive\|inbox` | Filter log by action taken |
+| `em-phi log --search TEXT` | Show entries whose subject or reason contains TEXT |
 | `em-phi debug` | Fetch the first unread email and print the exact prompt that would be sent to Claude |
 | `em-phi debug --rule EMAIL` | Debug a specific rule |
 | `em-phi debug --limit N` | Inspect the first N unread emails |
+| `em-phi serve` | Start the web UI (dashboard, log viewer, config editor) with the built-in scheduler; needs a `web:` block in the config |
 
 Global option: `--config PATH` (default: `config.yaml`, overridden by `EM_PHI_CONFIG` env var).
 
@@ -117,6 +124,50 @@ Use cases:
 - **Diagnose unexpected verdicts** — compare the prompt against Claude's reasoning in `em-phi log`
 
 `ANTHROPIC_API_KEY` is not required. Only works with the built-in `claude` classifier.
+
+---
+
+## Web UI
+
+`em-phi serve` starts a FastAPI dashboard on `web.host:web.port`. Add a `web:` block to the config first (see [Config reference](#config-reference)). The UI is protected by `web.auth_token`: sign in with the token, and change the default `change-me`.
+
+Pages:
+
+- **Run** — run now, dry run, or run a single rule, with verdicts streamed live as emails are classified
+- **Log** — the decision log, filterable by rule, days, verdict, action and text, with paging
+- **Debug** — prompt inspector, the web version of `em-phi debug`
+- **Config** — edit rules, schedule and settings. Saving rewrites `config.yaml` and drops any comments in it
+
+**Built-in scheduler.** Set `schedule.enabled: true` and either `interval_hours` or a `cron` expression (cron wins if both are set). The scheduler only runs in serve mode; `em-phi run` ignores it.
+
+`serve` is the default mode of the Docker image. See [docs/docker.md](docs/docker.md).
+
+---
+
+## Recommended Gmail setup
+
+This is the label-driven workflow the author uses.
+
+1. In Gmail, create a filter per newsletter sender, or one filter with `from:(a@x.com OR b@y.com)`, that applies a label such as `EmPhi`. Go to Settings → Filters → Create filter → **Apply the label**.
+2. Set `email_provider.fetch_label: EmPhi`. em-phi then only looks at mail carrying that label. The Gmail query becomes the rule's `from:` clause + `is:unread` + `label:EmPhi`. Rules still need to match the sender; the label just narrows what is fetched.
+3. Optional "gatekeeper" variant: also tick **Skip the Inbox (Archive it)** in the Gmail filter and use `action: inbox` on the rule. Newsletters never hit the inbox directly. em-phi moves only the relevant ones back in and leaves the rest archived with the irrelevant label.
+4. Start with `action: label` and check the Log for a few days before archiving.
+
+```yaml
+email_provider:
+  name: gmail
+  credentials_file: credentials.json
+  token_file: token.json
+  fetch_label: EmPhi
+
+rules:
+  - email: newsletter@example.com
+    name: "Example Newsletter"
+    interests: |
+      What you want to read from this sender.
+    tolerance: balanced
+    action: inbox
+```
 
 ---
 

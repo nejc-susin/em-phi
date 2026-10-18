@@ -15,7 +15,7 @@ Gmail OAuth2 requires a browser for the initial authorization. You must generate
 ### 1. Install on your local machine
 
 ```bash
-git clone https://github.com/yourname/em-phi.git
+git clone https://github.com/nejc-susin/em-phi.git
 cd em-phi
 uv sync
 ```
