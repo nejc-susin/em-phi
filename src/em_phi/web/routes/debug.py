@@ -24,8 +24,11 @@ def _parse_int(raw: str | None) -> int | None:
 def router(state: AppState, templates: Jinja2Templates) -> APIRouter:
     r = APIRouter()
 
+    # Plain `def` (not `async def`) on purpose: it does blocking Gmail network
+    # I/O, so FastAPI must run it in its threadpool rather than on the event
+    # loop (which would freeze SSE streams, other requests and the scheduler).
     @r.get("/debug", response_class=HTMLResponse)
-    async def debug_page(request: Request, rule: str | None = None, limit: str | None = None):
+    def debug_page(request: Request, rule: str | None = None, limit: str | None = None):
         from em_phi.cli import _build_provider
         from em_phi.debug import fetch_debug_info
 
